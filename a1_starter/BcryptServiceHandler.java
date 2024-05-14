@@ -8,9 +8,10 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 	{
 		try {
 			List<String> ret = new ArrayList<>();
-			String onePwd = password.get(0);
-			String oneHash = BCrypt.hashpw(onePwd, BCrypt.gensalt(logRounds));
-			ret.add(oneHash);
+			for (String pwd: password) {
+				String hash = BCrypt.hashpw(pwd, BCrypt.gensalt(logRounds));
+				ret.add(hash);
+			}
 			return ret;
 		} catch (Exception e) {
 			throw new IllegalArgument(e.getMessage());
@@ -21,9 +22,11 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 	{
 		try {
 			List<Boolean> ret = new ArrayList<>();
-			String onePwd = password.get(0);
-			String oneHash = hash.get(0);
-			ret.add(BCrypt.checkpw(onePwd, oneHash));
+			for (int i=0; i<password.size(); i++) {
+				String pwd = password.get(i);
+				String hash = hash.get(i);
+				ret.add(BCrypt.checkpw(pwd, hash));
+			}
 			return ret;
 		} catch (Exception e) {
 			throw new IllegalArgument(e.getMessage());
