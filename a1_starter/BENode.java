@@ -5,8 +5,11 @@ import org.apache.log4j.Logger;
 
 import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TBinaryProtocol;
+import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.TSimpleServer;
 import org.apache.thrift.transport.TServerSocket;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TFramedTransport;
 
 
@@ -27,6 +30,21 @@ public class BENode {
 		int portFE = Integer.parseInt(args[1]);
 		int portBE = Integer.parseInt(args[2]);
 		log.info("Launching BE node on port " + portBE + " at host " + getHostName());
+
+		try {
+			TSocket sock = new TSocket(hostFE, portFE);
+			TTransport transport = new TFramedTransport(sock);
+			TProtocol protocol = new TBinaryProtocol(transport);
+			BcryptService.Client client = new BcryptService.Client(protocol);
+			transport.open();
+
+			client.pingFE(portBE);
+
+			transport.close();
+		} catch (Exception e) {
+			System.out.println(e);
+		}
+
 
 		// launch Thrift server
 		BcryptService.Processor processor = new BcryptService.Processor<BcryptService.Iface>(new BcryptServiceHandler());

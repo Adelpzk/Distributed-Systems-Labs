@@ -7,9 +7,18 @@ import org.apache.thrift.server.TSimpleServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TFramedTransport;
 
+import java.util.ArrayList;
+import java.util.List;
+
 
 public class FENode {
 	static Logger log;
+	static List<Integer> BENodes; // list of BE node port numbers
+
+	public static void saveBENode(int port) {
+		BENodes.add(port);
+		log.info(port + " added to BENodes");
+	}
 
 	public static void main(String [] args) throws Exception {
 		if (args.length != 1) {
@@ -20,6 +29,9 @@ public class FENode {
 		// initialize log4j
 		BasicConfigurator.configure();
 		log = Logger.getLogger(FENode.class.getName());
+
+		// initialize BENodes list
+		BENodes = new ArrayList<>();
 
 		int portFE = Integer.parseInt(args[0]);
 		log.info("Launching FE node on port " + portFE);
@@ -35,3 +47,4 @@ public class FENode {
 		server.serve();
     }
 }
+

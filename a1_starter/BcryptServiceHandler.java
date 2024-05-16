@@ -24,12 +24,17 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 			List<Boolean> ret = new ArrayList<>();
 			for (int i=0; i<password.size(); i++) {
 				String pwd = password.get(i);
-				String hash = hash.get(i);
-				ret.add(BCrypt.checkpw(pwd, hash));
+				String hsh = hash.get(i);
+				ret.add(BCrypt.checkpw(pwd, hsh));
 			}
 			return ret;
 		} catch (Exception e) {
 			throw new IllegalArgument(e.getMessage());
 		}
 	}
+
+	public void pingFE(int port) {
+        System.out.println("Received ping from BE port " + port);
+		FENode.saveBENode(port);
+    }
 }
