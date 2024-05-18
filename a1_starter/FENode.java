@@ -13,10 +13,10 @@ import java.util.List;
 
 public class FENode {
 	static Logger log;
-	static List<Integer> BENodes; // list of BE node port numbers
+	static Integer BENodePort; // list of BE node port number  ---> turned this into just a static variable to simplify logic for forwarding to the BENode
 
 	public static void saveBENode(int port) {
-		BENodes.add(port);
+		BENodePort = port;
 		log.info(port + " added to BENodes");
 	}
 
@@ -30,8 +30,7 @@ public class FENode {
 		BasicConfigurator.configure();
 		log = Logger.getLogger(FENode.class.getName());
 
-		// initialize BENodes list
-		BENodes = new ArrayList<>();
+
 
 		int portFE = Integer.parseInt(args[0]);
 		log.info("Launching FE node on port " + portFE);
