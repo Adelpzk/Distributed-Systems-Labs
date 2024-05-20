@@ -13,11 +13,15 @@ import java.util.List;
 
 public class FENode {
 	static Logger log;
-	static Integer BENodePort; // list of BE node port number  ---> turned this into just a static variable to simplify logic for forwarding to the BENode
+	static Integer BENodePort; //   ---> turned this into just a static variable to simplify logic for forwarding to the BENode
+	static List<Integer> BENodes; // list of BE node port numbers
+	static Integer counter = 0; // used to track last used node 0: FENode, 1: 1st BENode, 2: 2nd BENode
 
 	public static void saveBENode(int port) {
-		BENodePort = port;
+		// BENodePort = port;
+		BENodes.add(port);
 		log.info(port + " added to BENodes");
+		counter = 0;
 	}
 
 	public static void main(String [] args) throws Exception {
@@ -26,11 +30,11 @@ public class FENode {
 			System.exit(-1);
 		}
 
+		BENodes = new ArrayList<Integer>();
+
 		// initialize log4j
 		BasicConfigurator.configure();
 		log = Logger.getLogger(FENode.class.getName());
-
-
 
 		int portFE = Integer.parseInt(args[0]);
 		log.info("Launching FE node on port " + portFE);

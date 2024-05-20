@@ -9,7 +9,7 @@ public class BEServiceHandler implements BcryptService.Iface {
 
     @Override
     public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException {
-        log.info("BE node processing password!!!!!!!!!!!");
+        log.info("BENode (" + BENode.port + ") hashing password(s)");
         List<String> ret = new ArrayList<>();
         try {
             for (String pwd : passwords) {
@@ -24,6 +24,7 @@ public class BEServiceHandler implements BcryptService.Iface {
 
     @Override
     public List<Boolean> checkPassword(List<String> passwords, List<String> hashes) throws IllegalArgument, TException {
+        log.info("BENode (" + BENode.port + ") checking password(s)");
         try {
             List<Boolean> ret = new ArrayList<>();
             for (int i = 0; i < passwords.size(); i++) {
@@ -39,6 +40,6 @@ public class BEServiceHandler implements BcryptService.Iface {
 
     @Override
     public void pingFE(int port) {
-
-    }//unnessisry 
+        // does nothing
+    }
 }

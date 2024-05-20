@@ -14,17 +14,38 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     @Override
     public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException {
-        if (FENode.BENodePort == null) {
-            log.info("there are NO BE Nodes available. Passwords will be processed on FE :(");
+        // if (FENode.BENodePort == null) {
+        //     log.info("there are NO BE Nodes available. Passwords will be processed on FE :(");
+        //     return hashPasswordsFE(passwords, logRounds);
+        // } else {
+        //     log.info("Forwarding password hashing to BE node on port!!!" + FENode.BENodePort);
+        //     // Forward tasks to the BE node
+        //     return hashPasswordsBE(passwords, logRounds, FENode.BENodePort);
+        // }
+
+        // round robin load balancing
+
+        if (FENode.BENodes.size() == 0) { // no BE nodes available
             return hashPasswordsFE(passwords, logRounds);
-        } else {
-            log.info("Forwarding password hashing to BE node on port!!!" + FENode.BENodePort);
-            // Forward tasks to the BE node
-            return hashPasswordsOnBE(passwords, logRounds, FENode.BENodePort);
+        }
+        else { // at least 1 BE node available
+            if (FENode.counter == 0) {  // FE node takes task
+                FENode.counter = 1;
+                return hashPasswordsFE(passwords, logRounds);
+            }
+            else if (FENode.counter == 1) { // first or only BE node takes task
+                FENode.counter = (FENode.counter + 1) % (FENode.BENodes.size() + 1);
+                return hashPasswordsBE(passwords, logRounds, FENode.BENodes.get(0));   
+            }
+            else {  // second BE node takes task
+                FENode.counter = 0;
+                return hashPasswordsBE(passwords, logRounds, FENode.BENodes.get(1));   
+            }
         }
     }
 
     private List<String> hashPasswordsFE(List<String> passwords, short logRounds) throws IllegalArgument { //helper function to hash passwords on the FE
+        log.info("FE hashing passwords");
         List<String> ret = new ArrayList<>();
         try {
             for (String pwd : passwords) {
@@ -37,7 +58,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         return ret;
     }
 
-    private List<String> hashPasswordsOnBE(List<String> passwords, short logRounds, int portBE) throws TException { //helper function to hash passwords in the BE
+    private List<String> hashPasswordsBE(List<String> passwords, short logRounds, int portBE) throws TException { //helper function to hash passwords in the BE
         TSocket sock = new TSocket("localhost", portBE);
         TTransport transport = new TFramedTransport(sock);
         TProtocol protocol = new TBinaryProtocol(transport);
@@ -52,6 +73,27 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     @Override
     public List<Boolean> checkPassword(List<String> passwords, List<String> hashes) throws IllegalArgument, TException {
+        if (FENode.BENodes.size() == 0) { // no BE nodes available
+            return checkPasswordsFE(passwords, hashes);
+        }
+        else { // at least 1 BE node available
+            if (FENode.counter == 0) {
+                FENode.counter = 1;
+                return checkPasswordsFE(passwords, hashes);
+            }
+            else if (FENode.counter == 1) {
+                FENode.counter = (FENode.counter + 1) % (FENode.BENodes.size() + 1);
+                return checkPasswordsBE(passwords, hashes, FENode.BENodes.get(0));   
+            }
+            else {
+                FENode.counter = 0;
+                return checkPasswordsBE(passwords, hashes, FENode.BENodes.get(1));   
+            }
+        }
+    }
+
+    public List<Boolean> checkPasswordsFE(List<String> passwords, List<String> hashes) throws IllegalArgument, TException {
+        log.info("FE hashing passwords");
         try {
             List<Boolean> ret = new ArrayList<>();
             for (int i = 0; i < passwords.size(); i++) {
@@ -65,7 +107,19 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         }
     }
 
-    @Override
+    public List<Boolean> checkPasswordsBE(List<String> passwords, List<String> hashes, int portBE) throws IllegalArgument, TException {
+        TSocket sock = new TSocket("localhost", portBE);
+        TTransport transport = new TFramedTransport(sock);
+        TProtocol protocol = new TBinaryProtocol(transport);
+        BcryptService.Client client = new BcryptService.Client(protocol);
+
+        transport.open();
+        List<Boolean> checkedPasswords = client.checkPassword(passwords, hashes);
+        transport.close();
+
+        return checkedPasswords;
+    }
+
     public void pingFE(int port) {
         System.out.println("Received ping from BE port " + port);
         FENode.saveBENode(port);

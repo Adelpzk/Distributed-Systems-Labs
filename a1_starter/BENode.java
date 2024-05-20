@@ -15,6 +15,7 @@ import org.apache.thrift.transport.TFramedTransport;
 
 public class BENode {
 	static Logger log;
+	static Integer port;
 
 	public static void main(String [] args) throws Exception {
 		if (args.length != 3) {
@@ -29,6 +30,9 @@ public class BENode {
 		String hostFE = args[0];
 		int portFE = Integer.parseInt(args[1]);
 		int portBE = Integer.parseInt(args[2]);
+		
+		port = portBE;
+
 		log.info("Launching BE node on port " + portBE + " at host " + getHostName());
 
 		try {
