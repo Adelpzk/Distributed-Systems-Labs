@@ -1,64 +1,83 @@
-import java.util.List;
-import java.util.ArrayList;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TSocket;
+import org.apache.thrift.transport.TTransport;
 
-public class Client {
-    public static void main(String [] args) {
-        if (args.length < 3) {
-            System.err.println("Usage: java Client FE_host FE_port password1 [password2 ...]");
-            System.exit(-1);
-        }
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 
+public class Client implements Runnable {
+    private String host;
+    private int port;
+    private String[] passwords;
+
+    public Client(String host, int port, String[] passwords) {
+        this.host = host;
+        this.port = port;
+        this.passwords = passwords;
+    }
+
+    @Override
+    public void run() {
         try {
-            TSocket sock = new TSocket(args[0], Integer.parseInt(args[1]));
+            TSocket sock = new TSocket(host, port);
             TTransport transport = new TFramedTransport(sock);
             TProtocol protocol = new TBinaryProtocol(transport);
             BcryptService.Client client = new BcryptService.Client(protocol);
             transport.open();
 
-            List<String> password = new ArrayList<>();
-            List<String> password1 = new ArrayList<>();
-            List<String> password2 = new ArrayList<>();
-
-            for (int i = 2; i < args.length; i++) {
-                password.add(args[i]);
-                password2.add(args[i]);
-                password1.add(args[i]);
+            List<String> passwordList = new ArrayList<>();
+            for (String password : passwords) {
+                passwordList.add(password);
             }
+
+            List<String> hash = client.hashPassword(passwordList, (short) 10);
+            client.checkPassword(passwordList, hash);
             
-            List<String> hash = client.hashPassword(password, (short)10);
-            List<String> hash1 = client.hashPassword(password1, (short)10);
-            List<String> hash2 = client.hashPassword(password2, (short)10);
-
-
-            // for (int i = 0; i < password.size(); i++) {
-            //     System.out.println("Password: " + password.get(i));
-            //     System.out.println("Hash: " + hash.get(i));
-            // }
-
-            // // Positive check: all passwords should match their hashes
-            // System.out.println("Positive check: " + client.checkPassword(password, hash));
-
-            // // Negative check: change the first hash and check
-            // hash.set(0, "$2a$14$reBHJvwbb0UWqJHLyPTVF.6Ld5sFRirZx/bXMeMmeurJledKYdZmG");
-            // System.out.println("Negative check: " + client.checkPassword(password, hash));
-
-            // try {
-            //     hash.set(0, "too short");
-            //     List<Boolean> rets = client.checkPassword(password, hash);
-            //     System.out.println("Exception check: no exception thrown");
-            // } catch (Exception e) {
-            //     System.out.println("Exception check: exception thrown");
-            // }
-
             transport.close();
-        } catch (TException x) {
-            x.printStackTrace();
-        } 
+
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void main(String[] args) {
+        long startTime = System.currentTimeMillis();
+        int numThreads = 4; // change this to change the amount of client threads
+
+        if (args.length < 3) {
+            System.err.println("Usage: java ClientThread FE_host FE_port password1 [password2 ...]");
+            System.exit(-1);
+        }
+
+        String host = args[0];
+        int port = Integer.parseInt(args[1]);
+        String[] passwords = new String[args.length - 2];
+        System.arraycopy(args, 2, passwords, 0, args.length - 2);
+
+        // Create a thread pool with four threads
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+        // Submit tasks to the thread pool
+        for (int i = 0; i < numThreads; i++) {
+            executor.submit(new Client(host, port, passwords));
+        }
+
+        // Shutdown the thread pool after all tasks are complete
+        executor.shutdown();
+
+        try {
+            // Wait for all tasks to complete or timeout after a certain period
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        long endTime = System.currentTimeMillis();
+        long executionTime = endTime - startTime;
+        System.out.println("Execution time: " + executionTime + " milliseconds");
     }
 }

@@ -7,6 +7,7 @@ import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.server.TSimpleServer;
+import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
@@ -35,30 +36,34 @@ public class BENode {
 
 		log.info("Launching BE node on port " + portBE + " at host " + getHostName());
 
-		try {
-			TSocket sock = new TSocket(hostFE, portFE);
-			TTransport transport = new TFramedTransport(sock);
-			TProtocol protocol = new TBinaryProtocol(transport);
-			BcryptService.Client client = new BcryptService.Client(protocol);
-			transport.open();
+		// ping FE
+		while (true) {
+			try {
+				TSocket sock = new TSocket(hostFE, portFE);
+				TTransport transport = new TFramedTransport(sock);
+				TProtocol protocol = new TBinaryProtocol(transport);
+				BcryptService.Client client = new BcryptService.Client(protocol);
+				transport.open();
 
-			client.pingFE(portBE);
+				client.pingFE(portBE);
 
-			transport.close();
-		} catch (Exception e) {
-			System.out.println(e);
+				transport.close();
+				break;
+			} catch (Exception e) {
+				log.error("Error connecting to FE. Retrying in 5 seconds...");
+                Thread.sleep(5000);
+			}
 		}
 
-
 		// launch Thrift server
-		BcryptService.Processor processor = new BcryptService.Processor<BcryptService.Iface>(new BEServiceHandler()); //forwarded to a seperate Encryption handler
+		BcryptService.Processor processor = new BcryptService.Processor<BcryptService.Iface>(new BcryptServiceHandler());
 		TServerSocket socket = new TServerSocket(portBE);
-		TSimpleServer.Args sargs = new TSimpleServer.Args(socket);
+		TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(socket);
 		sargs.protocolFactory(new TBinaryProtocol.Factory());
 		sargs.transportFactory(new TFramedTransport.Factory());
 		sargs.processorFactory(new TProcessorFactory(processor));
 		//sargs.maxWorkerThreads(64);
-		TSimpleServer server = new TSimpleServer(sargs);
+		TThreadPoolServer server = new TThreadPoolServer(sargs);
 		server.serve();
 	}
 

@@ -4,25 +4,20 @@ import org.apache.log4j.Logger;
 import org.apache.thrift.TProcessorFactory;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.server.TSimpleServer;
+import org.apache.thrift.server.TThreadPoolServer;
 import org.apache.thrift.transport.TServerSocket;
 import org.apache.thrift.transport.TFramedTransport;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 
 
 public class FENode {
 	static Logger log;
-	static Integer BENodePort; //   ---> turned this into just a static variable to simplify logic for forwarding to the BENode
 	static List<Integer> BENodes; // list of BE node port numbers
-	static Integer counter = 0; // used to track last used node 0: FENode, 1: 1st BENode, 2: 2nd BENode
-
-	public static void saveBENode(int port) {
-		// BENodePort = port;
-		BENodes.add(port);
-		log.info(port + " added to BENodes");
-		counter = 0;
-	}
+	static Integer counter; // used to track last used node 0: FENode, 1: 1st BENode, 2: 2nd BENode
+	static String hostname; 
 
 	public static void main(String [] args) throws Exception {
 		if (args.length != 1) {
@@ -31,6 +26,8 @@ public class FENode {
 		}
 
 		BENodes = new ArrayList<Integer>();
+		counter = 0;
+		hostname = getHostName();
 
 		// initialize log4j
 		BasicConfigurator.configure();
@@ -42,12 +39,26 @@ public class FENode {
 		// launch Thrift server
 		BcryptService.Processor processor = new BcryptService.Processor<BcryptService.Iface>(new BcryptServiceHandler());
 		TServerSocket socket = new TServerSocket(portFE);
-		TSimpleServer.Args sargs = new TSimpleServer.Args(socket);
+		TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(socket);
 		sargs.protocolFactory(new TBinaryProtocol.Factory());
 		sargs.transportFactory(new TFramedTransport.Factory());
 		sargs.processorFactory(new TProcessorFactory(processor));
-		TSimpleServer server = new TSimpleServer(sargs);
+		TThreadPoolServer server = new TThreadPoolServer(sargs);
 		server.serve();
     }
+	
+	static String getHostName()
+	{
+		try {
+			return InetAddress.getLocalHost().getHostName();
+		} catch (Exception e) {
+			return "localhost";
+		}
+	}
+
+	public static void saveBENode(int port) {
+		BENodes.add(port);
+		log.info(port + " added to BENodes");
+	}
 }
 
