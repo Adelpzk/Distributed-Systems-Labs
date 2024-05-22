@@ -1,12 +1,11 @@
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-import org.apache.thrift.TProcessorFactory;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.server.TSimpleServer;
-import org.apache.thrift.server.TThreadPoolServer;
-import org.apache.thrift.transport.TServerSocket;
-import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.server.*;
+import org.apache.thrift.server.TServer.*;
+import org.apache.thrift.transport.*;
+import org.apache.thrift.protocol.*;
+import org.apache.thrift.*;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -38,12 +37,13 @@ public class FENode {
 
 		// launch Thrift server
 		BcryptService.Processor processor = new BcryptService.Processor<BcryptService.Iface>(new BcryptServiceHandler());
-		TServerSocket socket = new TServerSocket(portFE);
-		TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(socket);
+		TNonblockingServerSocket socket = new TNonblockingServerSocket(portFE);
+		THsHaServer.Args sargs = new THsHaServer.Args(socket);
 		sargs.protocolFactory(new TBinaryProtocol.Factory());
 		sargs.transportFactory(new TFramedTransport.Factory());
 		sargs.processorFactory(new TProcessorFactory(processor));
-		TThreadPoolServer server = new TThreadPoolServer(sargs);
+		sargs.maxWorkerThreads(5);
+		TServer server = new THsHaServer(sargs);
 		server.serve();
     }
 	

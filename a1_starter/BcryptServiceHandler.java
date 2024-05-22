@@ -47,16 +47,20 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     // function that calls hashPasswords on a BE node
     private List<String> hashPasswordsBE(List<String> passwords, short logRounds, int portBE) throws TException {
-        TSocket sock = new TSocket(FENode.hostname, portBE);
-        TTransport transport = new TFramedTransport(sock);
-        TProtocol protocol = new TBinaryProtocol(transport);
-        BcryptService.Client client = new BcryptService.Client(protocol);
+        try {     
+            TSocket sock = new TSocket(FENode.hostname, portBE);
+            TTransport transport = new TFramedTransport(sock);
+            TProtocol protocol = new TBinaryProtocol(transport);
+            BcryptService.Client client = new BcryptService.Client(protocol);
 
-        transport.open();
-        List<String> hashedPasswords = client.hashPasswords(passwords, logRounds);
-        transport.close();
+            transport.open();
+            List<String> hashedPasswords = client.hashPasswords(passwords, logRounds);
+            transport.close();
 
-        return hashedPasswords;
+            return hashedPasswords;
+        } catch (Exception e) {
+            throw new IllegalArgument(e.getMessage());  
+        } 
     }
 
     public List<Boolean> checkPassword(List<String> passwords, List<String> hashes) throws IllegalArgument, TException {
@@ -92,16 +96,20 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     // function that calls checkPasswords on a BE node
     private List<Boolean> checkPasswordsBE(List<String> passwords, List<String> hashes, int portBE) throws IllegalArgument, TException {
-        TSocket sock = new TSocket(FENode.hostname, portBE);
-        TTransport transport = new TFramedTransport(sock);
-        TProtocol protocol = new TBinaryProtocol(transport);
-        BcryptService.Client client = new BcryptService.Client(protocol);
+        try {
+            TSocket sock = new TSocket(FENode.hostname, portBE);
+            TTransport transport = new TFramedTransport(sock);
+            TProtocol protocol = new TBinaryProtocol(transport);
+            BcryptService.Client client = new BcryptService.Client(protocol);
 
-        transport.open();
-        List<Boolean> checkedPasswords = client.checkPasswords(passwords, hashes);
-        transport.close();
+            transport.open();
+            List<Boolean> checkedPasswords = client.checkPasswords(passwords, hashes);
+            transport.close();
 
-        return checkedPasswords;
+            return checkedPasswords;
+        } catch (Exception e) {
+            throw new IllegalArgument(e.getMessage());  
+        } 
     }
 
     public void pingFE(int port) {

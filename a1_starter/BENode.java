@@ -3,15 +3,11 @@ import java.net.InetAddress;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-import org.apache.thrift.TProcessorFactory;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.server.TSimpleServer;
-import org.apache.thrift.server.TThreadPoolServer;
-import org.apache.thrift.transport.TServerSocket;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.server.*;
+import org.apache.thrift.server.TServer.*;
+import org.apache.thrift.transport.*;
+import org.apache.thrift.protocol.*;
+import org.apache.thrift.*;
 
 
 public class BENode {
@@ -57,13 +53,13 @@ public class BENode {
 
 		// launch Thrift server
 		BcryptService.Processor processor = new BcryptService.Processor<BcryptService.Iface>(new BcryptServiceHandler());
-		TServerSocket socket = new TServerSocket(portBE);
-		TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(socket);
+		TNonblockingServerSocket socket = new TNonblockingServerSocket(portBE);
+		THsHaServer.Args sargs = new THsHaServer.Args(socket);
 		sargs.protocolFactory(new TBinaryProtocol.Factory());
 		sargs.transportFactory(new TFramedTransport.Factory());
 		sargs.processorFactory(new TProcessorFactory(processor));
-		//sargs.maxWorkerThreads(64);
-		TThreadPoolServer server = new TThreadPoolServer(sargs);
+		sargs.maxWorkerThreads(5);
+		TServer server = new THsHaServer(sargs);
 		server.serve();
 	}
 
