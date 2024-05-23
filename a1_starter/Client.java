@@ -34,11 +34,11 @@ public class Client implements Runnable {
             }
 
             List<String> hash;
-            int loops = 2; 
+            int loops = 10; 
 
             for (int i=0; i<loops; i++) {
                 hash = client.hashPassword(passwordList, (short) 10);
-                client.checkPassword(passwordList, hash);
+                // client.checkPassword(passwordList, hash);
             }
             
             
@@ -52,7 +52,7 @@ public class Client implements Runnable {
 
     public static void main(String[] args) {
         long startTime = System.currentTimeMillis();
-        int numThreads = 16; // change this to change the amount of client threads
+        int numThreads = 4; // change this to change the amount of client threads
 
         if (args.length < 3) {
             System.err.println("Usage: java ClientThread FE_host FE_port password1 [password2 ...]");

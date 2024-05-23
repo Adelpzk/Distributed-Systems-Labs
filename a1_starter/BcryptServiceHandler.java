@@ -13,9 +13,9 @@ import org.apache.log4j.Logger;
 
 public class BcryptServiceHandler implements BcryptService.Iface {
     static Logger log = Logger.getLogger(BcryptServiceHandler.class.getName());  //Added a logger to see if the processes were actually being forwarded to the BE
-    private static AtomicInteger nodeIndex = new AtomicInteger(0);
+    private static AtomicInteger nodeIndex = new AtomicInteger(1);
 
-    public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException {
+    public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException { 
        if (FENode.BENodes.isEmpty()) { // no BE nodes available
             return hashPasswords(passwords, logRounds);
         }
