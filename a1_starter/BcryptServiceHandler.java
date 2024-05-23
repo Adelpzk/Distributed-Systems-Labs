@@ -16,13 +16,18 @@ public class BcryptServiceHandler implements BcryptService.Iface {
     private static AtomicInteger nodeIndex = new AtomicInteger(1);
 
     public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException { 
-       if (FENode.BENodes.isEmpty()) { // no BE nodes available
+        
+        if(logRounds < 4 || logRounds > 31){
+            throw new IllegalArgument("logRounds are out of Range");
+        }
+
+        if (FENode.BENodes.isEmpty()) { // no BE nodes available
             return hashPasswords(passwords, logRounds);
         }
-        
+
         // Get the current node index
         int index = nodeIndex.getAndIncrement() % (FENode.BENodes.size() + 1);
-        
+
         if (index == 0) { // FE node takes task
             return hashPasswords(passwords, logRounds);
         } else { // BE node takes task
@@ -32,6 +37,9 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     // function that actually hashes the passwords
     public List<String> hashPasswords(List<String> passwords, short logRounds) throws IllegalArgument {
+        if(logRounds < 4 || logRounds > 31){
+            throw new IllegalArgument("logRounds are out of Range");
+        }
         log.info("Hashing passwords");
         List<String> ret = new ArrayList<>();
         try {
@@ -47,7 +55,10 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     // function that calls hashPasswords on a BE node
     private List<String> hashPasswordsBE(List<String> passwords, short logRounds, int portBE) throws TException {
-        try {     
+        try { 
+            if(logRounds < 4 || logRounds > 31){
+                throw new IllegalArgument("logRounds are out of Range");
+            }
             TSocket sock = new TSocket(FENode.hostname, portBE);
             TTransport transport = new TFramedTransport(sock);
             TProtocol protocol = new TBinaryProtocol(transport);
@@ -64,6 +75,12 @@ public class BcryptServiceHandler implements BcryptService.Iface {
     }
 
     public List<Boolean> checkPassword(List<String> passwords, List<String> hashes) throws IllegalArgument, TException {
+        if (passwords.size() != hashes.size()){
+            throw new IllegalArgument("Passwords and Hashes are of Unequal length.");
+        }
+
+        malformedHashCheck(hashes);
+
         if (FENode.BENodes.isEmpty()) { // no BE nodes available
             return checkPasswords(passwords, hashes);
         }
@@ -96,6 +113,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     // function that calls checkPasswords on a BE node
     private List<Boolean> checkPasswordsBE(List<String> passwords, List<String> hashes, int portBE) throws IllegalArgument, TException {
+        malformedHashCheck(hashes);
         try {
             TSocket sock = new TSocket(FENode.hostname, portBE);
             TTransport transport = new TFramedTransport(sock);
@@ -110,6 +128,15 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         } catch (Exception e) {
             throw new IllegalArgument(e.getMessage());  
         } 
+    }
+
+    private void malformedHashCheck(List<String> hashes) throws IllegalArgument, TException{
+        for(int i = 0; i<= hashes.size()-1; i++){
+            String hash = hashes.get(i);
+            if(hash.length() != 60 || !hash.matches("^\\$2[aby]\\$\\d{2}\\$.{53}$")){
+                throw new IllegalArgument("Malformed hash: " + hash);
+            }
+        }
     }
 
     public void pingFE(int port) {
