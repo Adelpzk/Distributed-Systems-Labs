@@ -68,6 +68,7 @@ public class BENode {
 		sargs.protocolFactory(new TBinaryProtocol.Factory());
 		sargs.transportFactory(new TFramedTransport.Factory());
 		sargs.processorFactory(new TProcessorFactory(processor));
+		sargs.maxWorkerThreads(20);
 		TThreadPoolServer server = new TThreadPoolServer(sargs);
 		server.serve();
 	}
