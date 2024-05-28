@@ -53,7 +53,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
                     startIndex = endIndex;
                 }
 
-                System.out.println(passwords.subList(0, pwPerNode).toString());
+                // System.out.println(passwords.subList(0, pwPerNode).toString());
                 ret.addAll(hashPasswords(passwords.subList(0, pwPerNode), logRounds));
 
                 latch.await();
@@ -84,12 +84,11 @@ public class BcryptServiceHandler implements BcryptService.Iface {
     }
 
     public HashCallback hashPasswordsAsync(List<String> passwords, short logRounds, int portBE, CountDownLatch latch) {
-        System.out.println(passwords.toString());
+        // System.out.println(passwords.toString());
         try {
             TNonblockingTransport transport = new TNonblockingSocket(FENode.hostname, portBE);
             TProtocolFactory protocolFactory = new TBinaryProtocol.Factory();
-            TAsyncClientManager clientManager = new TAsyncClientManager();
-            BcryptService.AsyncClient client = new BcryptService.AsyncClient(protocolFactory, clientManager, transport);
+            BcryptService.AsyncClient client = new BcryptService.AsyncClient(protocolFactory, FENode.clientManager, transport);
             HashCallback cb = new HashCallback(latch, transport);
             
             client.hashPasswords(passwords, logRounds, cb);

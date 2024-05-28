@@ -6,6 +6,7 @@ import org.apache.thrift.server.TServer.*;
 import org.apache.thrift.transport.*;
 import org.apache.thrift.protocol.*;
 import org.apache.thrift.*;
+import org.apache.thrift.async.TAsyncClientManager;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -17,6 +18,7 @@ public class FENode {
 	static List<Integer> BENodes; // list of BE node port numbers
 	static Integer counter; // used to track last used node 0: FENode, 1: 1st BENode, 2: 2nd BENode
 	static String hostname; 
+	static TAsyncClientManager clientManager;
 
 	public static void main(String [] args) throws Exception {
 		if (args.length != 1) {
@@ -27,6 +29,8 @@ public class FENode {
 		BENodes = new ArrayList<Integer>();
 		counter = 0;
 		hostname = getHostName();
+	 	clientManager = new TAsyncClientManager();
+		
 
 		// initialize log4j
 		BasicConfigurator.configure();
