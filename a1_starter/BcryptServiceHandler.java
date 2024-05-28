@@ -1,15 +1,22 @@
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.mindrot.jbcrypt.BCrypt;
 import org.apache.thrift.TException;
+import org.apache.thrift.async.TAsyncClientManager;
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
+import org.apache.thrift.protocol.TProtocolFactory;
 import org.apache.thrift.transport.TFramedTransport;
+import org.apache.thrift.transport.TNonblockingSocket;
+import org.apache.thrift.transport.TNonblockingTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.log4j.Logger;
+
 
 public class BcryptServiceHandler implements BcryptService.Iface {
     static Logger log = Logger.getLogger(BcryptServiceHandler.class.getName());  //Added a logger to see if the processes were actually being forwarded to the BE
@@ -25,13 +32,72 @@ public class BcryptServiceHandler implements BcryptService.Iface {
             return hashPasswords(passwords, logRounds);
         }
 
-        // Get the current node index
-        int index = nodeIndex.getAndIncrement() % (FENode.BENodes.size() + 1);
+        // split passwords among nodes
+        if (passwords.size() > 1) {
+            List<String> ret = new ArrayList<String>();
+            try {
+                CountDownLatch latch = new CountDownLatch(FENode.BENodes.size());
+                List<HashCallback> callbacks = new ArrayList<HashCallback>();
+                
+                int nodeCount = FENode.BENodes.size();
+                int pwPerNode = passwords.size() / (nodeCount + 1);
+                int remainder = passwords.size() % (nodeCount + 1);
+                int startIndex = pwPerNode;
+                
+                for (int i = 0; i < FENode.BENodes.size(); i++) {
+                    int extraPassword = (i < remainder) ? 1 : 0;
+                    int endIndex = startIndex + pwPerNode + extraPassword;
+                    List<String> passwordsForNode = passwords.subList(startIndex, endIndex);
+                    
+                    callbacks.add(hashPasswordsAsync(passwordsForNode, logRounds, FENode.BENodes.get(i), latch));
+                    startIndex = endIndex;
+                }
 
-        if (index == 0) { // FE node takes task
-            return hashPasswords(passwords, logRounds);
-        } else { // BE node takes task
-            return hashPasswordsBE(passwords, logRounds, FENode.BENodes.get(index - 1));
+                System.out.println(passwords.subList(0, pwPerNode).toString());
+                ret.addAll(hashPasswords(passwords.subList(0, pwPerNode), logRounds));
+
+                latch.await();
+                
+                for (int i = 0; i < FENode.BENodes.size(); i++) {
+                    ret.addAll(callbacks.get(i).res);
+                }
+            
+            } catch (Exception e) {
+                System.err.println(e);
+            }
+            
+            return ret;
+        }
+        else {
+            // round robin
+            
+            // Get the current node index
+            int index = nodeIndex.getAndIncrement() % (FENode.BENodes.size() + 1);
+
+            if (index == 0) { // FE node takes task
+                return hashPasswords(passwords, logRounds);
+            } else { // BE node takes task
+                return hashPasswordsBE(passwords, logRounds, FENode.BENodes.get(index - 1));
+            }
+        }
+        
+    }
+
+    public HashCallback hashPasswordsAsync(List<String> passwords, short logRounds, int portBE, CountDownLatch latch) {
+        System.out.println(passwords.toString());
+        try {
+            TNonblockingTransport transport = new TNonblockingSocket(FENode.hostname, portBE);
+            TProtocolFactory protocolFactory = new TBinaryProtocol.Factory();
+            TAsyncClientManager clientManager = new TAsyncClientManager();
+            BcryptService.AsyncClient client = new BcryptService.AsyncClient(protocolFactory, clientManager, transport);
+            HashCallback cb = new HashCallback(latch, transport);
+            
+            client.hashPasswords(passwords, logRounds, cb);
+
+            return cb;
+        } catch (Exception e) {
+            System.err.println(e);
+            return null;
         }
     }
 
@@ -41,6 +107,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
             throw new IllegalArgument("logRounds are out of Range");
         }
         log.info("Hashing passwords");
+
         List<String> ret = new ArrayList<>();
         try {
             for (String pwd : passwords) {
@@ -69,7 +136,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
             transport.close();
 
             return hashedPasswords;
-        } catch (Exception e) {
+        } catch (TException e) {
             throw new IllegalArgument(e.getMessage());  
         } 
     }
