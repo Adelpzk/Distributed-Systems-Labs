@@ -21,7 +21,7 @@ import org.apache.log4j.Logger;
 public class BcryptServiceHandler implements BcryptService.Iface {
     static Logger log = Logger.getLogger(BcryptServiceHandler.class.getName());  //Added a logger to see if the processes were actually being forwarded to the BE
     private static AtomicInteger nodeIndex = new AtomicInteger(1);
-    private static int threshold = 1;   // # of list elements to warrant a split
+    private static int threshold = 3;   // # of list elements to warrant a split
 
     public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException { 
         

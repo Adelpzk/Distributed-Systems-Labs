@@ -46,8 +46,7 @@ public class BENode {
 				transport.close();
 				break;
 			} catch (Exception e) {
-				log.error("Error connecting to FE. Retrying in 5 seconds...");
-                Thread.sleep(5000);
+				// log.error("Error connecting to FE. Retrying...");
 			}
 		}
 

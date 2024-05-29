@@ -38,7 +38,7 @@ public class Client implements Runnable {
 
             for (int i=0; i<loops; i++) {
                 hash = client.hashPassword(passwordList, (short) 10);
-                System.out.println(client.checkPassword(passwordList, hash).toString());
+                client.checkPassword(passwordList, hash).toString();
             }
             
             
