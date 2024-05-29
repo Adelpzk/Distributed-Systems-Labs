@@ -21,6 +21,7 @@ import org.apache.log4j.Logger;
 public class BcryptServiceHandler implements BcryptService.Iface {
     static Logger log = Logger.getLogger(BcryptServiceHandler.class.getName());  //Added a logger to see if the processes were actually being forwarded to the BE
     private static AtomicInteger nodeIndex = new AtomicInteger(1);
+    private static int threshold = 1;   // # of list elements to warrant a split
 
     public List<String> hashPassword(List<String> passwords, short logRounds) throws IllegalArgument, TException { 
         
@@ -33,7 +34,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         }
 
         // split passwords among nodes
-        if (passwords.size() > 1) {
+        if (passwords.size() > threshold) {
             List<String> ret = new ArrayList<String>();
             try {
                 CountDownLatch latch = new CountDownLatch(FENode.BENodes.size());
@@ -83,7 +84,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         
     }
 
-    public HashCallback hashPasswordsAsync(List<String> passwords, short logRounds, int portBE, CountDownLatch latch) {
+    private HashCallback hashPasswordsAsync(List<String> passwords, short logRounds, int portBE, CountDownLatch latch) {
         // System.out.println(passwords.toString());
         try {
             TNonblockingTransport transport = new TNonblockingSocket(FENode.hostname, portBE);
@@ -150,14 +151,71 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         if (FENode.BENodes.isEmpty()) { // no BE nodes available
             return checkPasswords(passwords, hashes);
         }
-        
-        // Get the current node index
-        int index = nodeIndex.getAndIncrement() % (FENode.BENodes.size() + 1);
-        
-        if (index == 0) { // FE node takes task
-            return checkPasswords(passwords, hashes);
-        } else { // BE node takes task
-            return checkPasswordsBE(passwords, hashes, FENode.BENodes.get(index - 1));
+
+        // split passwords among nodes
+        if (passwords.size() > threshold) {
+            List<Boolean> ret = new ArrayList<Boolean>();
+            try {
+                CountDownLatch latch = new CountDownLatch(FENode.BENodes.size());
+                List<CheckCallback> callbacks = new ArrayList<CheckCallback>();
+                
+                int nodeCount = FENode.BENodes.size();
+                int pwPerNode = passwords.size() / (nodeCount + 1);
+                int remainder = passwords.size() % (nodeCount + 1);
+                int startIndex = pwPerNode;
+                
+                for (int i = 0; i < FENode.BENodes.size(); i++) {
+                    int extraPassword = (i < remainder) ? 1 : 0;
+                    int endIndex = startIndex + pwPerNode + extraPassword;
+                    List<String> passwordsForNode = passwords.subList(startIndex, endIndex);
+                    List<String> hashesForNode = hashes.subList(startIndex, endIndex);
+                    
+                    callbacks.add(checkPasswordsAsync(passwordsForNode, hashesForNode, FENode.BENodes.get(i), latch));
+                    startIndex = endIndex;
+                }
+
+                // System.out.println(passwords.subList(0, pwPerNode).toString());
+                ret.addAll(checkPasswords(passwords.subList(0, pwPerNode), hashes.subList(0, pwPerNode)));
+
+                latch.await();
+                
+                for (int i = 0; i < FENode.BENodes.size(); i++) {
+                    ret.addAll(callbacks.get(i).res);
+                }
+            
+            } catch (Exception e) {
+                System.err.println(e);
+            }
+            
+            return ret;
+        } 
+        else {
+            // Get the current node index
+            int index = nodeIndex.getAndIncrement() % (FENode.BENodes.size() + 1);
+            
+            if (index == 0) { // FE node takes task
+                return checkPasswords(passwords, hashes);
+            } else { // BE node takes task
+                return checkPasswordsBE(passwords, hashes, FENode.BENodes.get(index - 1));
+            }
+        }
+
+    }
+
+    private CheckCallback checkPasswordsAsync(List<String> passwords, List<String> hashes, int portBE, CountDownLatch latch) {
+        // System.out.println(passwords.toString());
+        try {
+            TNonblockingTransport transport = new TNonblockingSocket(FENode.hostname, portBE);
+            TProtocolFactory protocolFactory = new TBinaryProtocol.Factory();
+            BcryptService.AsyncClient client = new BcryptService.AsyncClient(protocolFactory, FENode.clientManager, transport);
+            CheckCallback cb = new CheckCallback(latch, transport);
+            
+            client.checkPasswords(passwords, hashes, cb);
+
+            return cb;
+        } catch (Exception e) {
+            System.err.println(e);
+            return null;
         }
     }
 
