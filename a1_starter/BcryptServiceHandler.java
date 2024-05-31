@@ -34,7 +34,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         }
 
         // split passwords among nodes
-        if (passwords.size() > threshold) {
+        if (passwords.size() >= threshold) {
             List<String> ret = new ArrayList<String>();
             try {
                 CountDownLatch latch = new CountDownLatch(FENode.BENodes.size());
@@ -106,7 +106,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         if(logRounds < 4 || logRounds > 31){
             throw new IllegalArgument("logRounds are out of Range");
         }
-        log.info("Hashing passwords");
+        // log.info("Hashing passwords");
 
         List<String> ret = new ArrayList<>();
         try {
@@ -153,7 +153,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
         }
 
         // split passwords among nodes
-        if (passwords.size() > threshold) {
+        if (passwords.size() >= threshold) {
             List<Boolean> ret = new ArrayList<Boolean>();
             try {
                 CountDownLatch latch = new CountDownLatch(FENode.BENodes.size());
@@ -221,7 +221,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
 
     // function that actually checks passwords
     public List<Boolean> checkPasswords(List<String> passwords, List<String> hashes) throws IllegalArgument, TException {
-        log.info("Checking passwords");
+        // log.info("Checking passwords");
         try {
             List<Boolean> ret = new ArrayList<>();
             for (int i = 0; i < passwords.size(); i++) {
@@ -264,7 +264,7 @@ public class BcryptServiceHandler implements BcryptService.Iface {
     }
 
     public void pingFE(int port) {
-        System.out.println("Received ping from BE port " + port);
+        // System.out.println("Received ping from BE port " + port);
         FENode.saveBENode(port);
     }
 }

@@ -72,7 +72,7 @@ public class FENode {
 
 	public static void saveBENode(int port) {
 		BENodes.add(port);
-		log.info(port + " added to BENodes");
+		// log.info(port + " added to BENodes");
 	}
 }
 
