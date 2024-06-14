@@ -10,9 +10,9 @@ object Task2 {
 
     val accum = sc.longAccumulator("Number of Ratings Accumulator")
 
-    textFile.flatmap(line => line.split(",")).foreach(rating => if (rating.nonEmpty) accum.add(1))
+    textFile.flatMap(line => line.split(",").drop(1)).foreach(rating => if (rating != "") accum.add(1))
 
     // modify this code
-    sc.parallelize(Seq(accum.value.toString)).saveAsTextFile(args[1])
+    sc.parallelize(Seq(accum.value.toString)).saveAsTextFile(args(1))
   }
 }
