@@ -34,7 +34,7 @@ public class ClientAdel implements Runnable {
             transport.open();
             System.out.println("Process_Starting");
 
-            List<String> hash = client.hashPassword(passwordList, (short) 10);
+            List<String> hash = client.hashPassword(passwordList, (short) 11);
             System.out.println("Hashing completed");
 
             List<Boolean> checkResults = client.checkPassword(passwordList, hash);

@@ -12,6 +12,8 @@ elif [ -f /usr/lib/jvm/java-8-openjdk-amd64/bin/javac ]; then
 	JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
 elif [ -f /usr/lib/jvm/java-openjdk/bin/javac ]; then
 	JAVA_HOME=/usr/lib/jvm/java-openjdk
+elif [ -f /usr/libexec/java_home ]; then
+	JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk-11.jdk/Contents/Home
 else
 	echo "Unable to find java compiler :("
 	exit 1
@@ -19,7 +21,7 @@ fi
 
 JAVA=$JAVA_HOME/bin/java
 JAVA_CC=$JAVA_HOME/bin/javac
-THRIFT_CC=/opt/bin/thrift
+THRIFT_CC=/opt/homebrew/opt/thrift@0.13/bin/thrift
 
 echo --- Cleaning
 rm -f *.jar
@@ -39,7 +41,6 @@ fi
 $THRIFT_CC --version
 $THRIFT_CC --gen java:generated_annotations=suppress a1.thrift
 
-
 echo --- Compiling Java
 $JAVA_CC -version
 $JAVA_CC gen-java/*.java -cp .:"lib/*"
@@ -50,4 +51,4 @@ echo	 Examples:
 echo $JAVA '-cp .:gen-java/:"lib/*":"jBCrypt-0.4/*" FENode 10123'
 echo $JAVA '-cp .:gen-java/:"lib/*":"jBCrypt-0.4/*" BENode localhost 10123 10124'
 echo $JAVA '-cp .:gen-java/:"lib/*":"jBCrypt-0.4/*" Client localhost 10123 hello'
-
+echo $JAVA '-Xmx6g -cp .:gen-java/:"lib/*":"jBCrypt-0.4/*" ClientAdel localhost 10123 8 128 4'
