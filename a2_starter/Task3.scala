@@ -8,9 +8,13 @@ object Task3 {
 
     val textFile = sc.textFile(args(0))
 
-    // modify this code
-    val output = textFile.map(x => x);
-    
-    output.saveAsTextFile(args(1))
+    val counts = textFile.flatMap(line => line.split(",", -1))
+      .drop(1)
+      .zipWithIndex
+      .filter(!_._1.isEmpty)
+      .map(_, user => (user, 1))
+      .reduceByKey(_ + _)
+      .map(x => x._1 + "," + x._2)
+      .saveAsTextFile(args(1))
   }
 }
