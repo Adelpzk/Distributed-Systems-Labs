@@ -16,6 +16,7 @@ export SPARK_HOME=/opt/spark-latest/
 MAIN_SPARK_JAR=`ls $SPARK_HOME/jars/spark-core*.jar`
 export CLASSPATH=".:$MAIN_SPARK_JAR"
 
+export TARGET=in5.txt   # change this to the server file you want to test
 
 echo --- Deleting
 rm Task2.jar
@@ -31,14 +32,20 @@ echo --- Jarring
 $JAVA_HOME/bin/jar -cf Task2.jar Task2*.class
 
 echo --- Running
-INPUT=/user/${USER}/a2_inputs/
+# INPUT=/user/${USER}/a2_inputs/
+INPUT=/a2_inputs/${TARGET}
 OUTPUT=/user/${USER}/a2_starter_code_output_spark/
 
-$HADOOP_HOME/bin/hdfs dfs -mkdir $INPUT
+# $HADOOP_HOME/bin/hdfs dfs -mkdir $INPUT
 $HADOOP_HOME/bin/hdfs dfs -rm -R $OUTPUT
-$HADOOP_HOME/bin/hdfs dfs -copyFromLocal sample_input/smalldata.txt $INPUT
+# $HADOOP_HOME/bin/hdfs dfs -cp /a2_inputs/in2.txt $INPUT
 time $SPARK_HOME/bin/spark-submit --master yarn --class Task2 --driver-memory 4g --executor-memory 4g Task2.jar $INPUT $OUTPUT
 
 export HADOOP_ROOT_LOGGER="WARN"
-$HADOOP_HOME/bin/hdfs dfs -ls $OUTPUT
-$HADOOP_HOME/bin/hdfs dfs -cat $OUTPUT/*
+# $HADOOP_HOME/bin/hdfs dfs -ls $OUTPUT
+# $HADOOP_HOME/bin/hdfs dfs -cat $OUTPUT/*
+
+# change t1 to the correct task
+rm out/t2_${TARGET}
+$HADOOP_HOME/bin/hdfs dfs -cat $OUTPUT/* | sort > ~/ece454-assignments/a2_starter/out/t2_${TARGET}
+diff a2_output/t2_${TARGET} out/t2_${TARGET}
