@@ -1,0 +1,78 @@
+#
+# There is insufficient memory for the Java Runtime Environment to continue.
+# Cannot create GC thread. Out of system resources.
+# Possible reasons:
+#   The system is out of physical RAM or swap space
+#   The process is running with CompressedOops enabled, and the Java Heap may be blocking the growth of the native heap
+# Possible solutions:
+#   Reduce memory load on the system
+#   Increase physical memory or swap space
+#   Check if swap backing store is full
+#   Decrease Java heap size (-Xmx/-Xms)
+#   Decrease number of Java threads
+#   Decrease Java thread stack sizes (-Xss)
+#   Set larger code cache with -XX:ReservedCodeCacheSize=
+# This output file may be truncated or incomplete.
+#
+#  Out of Memory Error (gcTaskThread.cpp:48), pid=2728637, tid=0x00007f6066076700
+#
+# JRE version:  (8.0_412-b08) (build )
+# Java VM: OpenJDK 64-Bit Server VM (25.412-b08 mixed mode linux-amd64 compressed oops)
+# Failed to write core dump. Core dumps have been disabled. To enable core dumping, try "ulimit -c unlimited" before starting Java again
+#
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x00007f606000b800):  JavaThread "Unknown thread" [_thread_in_vm, id=2728638, stack(0x00007f6065f77000,0x00007f6066077000)]
+
+Stack: [0x00007f6065f77000,0x00007f6066077000],  sp=0x00007f60660757a0,  free space=1017k
+Native frames: (J=compiled Java code, j=interpreted, Vv=VM code, C=native code)
+V  [libjvm.so+0xb388aa]
+V  [libjvm.so+0x4f2e91]
+V  [libjvm.so+0x5d021f]
+V  [libjvm.so+0x5cf8ff]
+V  [libjvm.so+0x9a734a]
+V  [libjvm.so+0xafacba]
+V  [libjvm.so+0xafaf49]
+V  [libjvm.so+0x648d4f]
+V  [libjvm.so+0xadabf0]
+V  [libjvm.so+0x72a772]  JNI_CreateJavaVM+0x62
+C  [libjli.so+0x442a]
+C  [libjli.so+0x8dc1]
+C  [libpthread.so.0+0x8609]  start_thread+0xd9
+
+
+---------------  P R O C E S S  ---------------
+
+Java Threads: ( => current thread )
+
+Other Threads:
+
+=>0x00007f606000b800 (exited) JavaThread "Unknown thread" [_thread_in_vm, id=2728638, stack(0x00007f6065f77000,0x00007f6066077000)]
+
+VM state:not at safepoint (not fully initialized)
+
+VM Mutex/Monitor currently owned by a thread: None
+
+heap address: 0x00000000ff000000, size: 16 MB, Compressed Oops mode: Non-zero based:0x00000000fefff000
+Narrow klass base: 0x0000000000000000, Narrow klass shift: 0
+
+GC Heap History (0 events):
+No events
+
+Deoptimization events (0 events):
+No events
+
+Classes redefined (0 events):
+No events
+
+Internal exceptions (0 events):
+No events
+
+Events (0 events):
+No events
+
+
+Dynamic libraries:
+ff000000-100000000 rw-p 00000000 00:00 0 
+55610ecf1000-55610ecf2000 r--p 00000000 08:11 11144974
