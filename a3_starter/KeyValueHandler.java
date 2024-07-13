@@ -7,6 +7,11 @@ import org.apache.thrift.protocol.*;
 
 import org.apache.curator.framework.*;
 
+import java.util.concurrent.locks.*;
+
+
+
+
 public class KeyValueHandler implements KeyValueService.Iface {
     private Map<String, String> myMap;
     private CuratorFramework curClient;
@@ -14,6 +19,7 @@ public class KeyValueHandler implements KeyValueService.Iface {
     private String host;
     private int port;
     private volatile boolean isPrimary;
+    private final ReentrantLock lock = new ReentrantLock();
 
     public KeyValueHandler(String host, int port, CuratorFramework curClient, String zkNode) {
         this.host = host;
@@ -25,16 +31,25 @@ public class KeyValueHandler implements KeyValueService.Iface {
 
     @Override
     public String get(String key) throws org.apache.thrift.TException {
-        String ret = myMap.get(key);
-        System.out.println("GET: " + key + " -> " + ret);
-        if (ret == null)
-            return "";
-        else
-            return ret;
+        lock.lock();
+        try {
+
+            String ret = myMap.get(key);
+            System.out.println("GET: " + key + " -> " + ret);
+            if (ret == null)
+                return "";
+            else
+                return ret;
+            
+                
+        }finally{
+            lock.unlock();
+        }
     }
 
     @Override
     public void put(String key, String value) throws org.apache.thrift.TException {
+
         myMap.put(key, value);
         System.out.println("PUT: " + key + " -> " + value);
         // we check if this node (server) is a primary server, then we want to also do the put operation on the backup node
@@ -70,6 +85,8 @@ public class KeyValueHandler implements KeyValueService.Iface {
             // this first part is just finding the host and port number of the backup node
             List<String> children = curClient.getChildren().forPath(zkNode);
             Collections.sort(children);
+
+            
             for (int i = 1; i < children.size(); i++) {
                 String backupNode = children.get(i);
                 byte[] backupData = curClient.getData().forPath(zkNode + "/" + backupNode);
@@ -90,9 +107,12 @@ public class KeyValueHandler implements KeyValueService.Iface {
                 backupClient.put(key, value);
 
                 transport.close();
+
+
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
+
 }

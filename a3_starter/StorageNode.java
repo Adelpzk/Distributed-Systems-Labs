@@ -22,6 +22,7 @@ public class StorageNode {
     static String zkConnectString;
     static String zkNode;
     static volatile boolean isPrimary;
+    static volatile boolean isInitialSyncCompleted = false;
 
     public static void main(String[] args) throws Exception {
         BasicConfigurator.configure();
@@ -101,6 +102,7 @@ public class StorageNode {
                 System.out.println("This node is now the primary: " + createdNodePath + "\n\n");
             }
         } 
+
         // if this node is not a primary node
         else {
             // but currently it is set to a primary node, update it to the backup/not primary node
@@ -112,8 +114,18 @@ public class StorageNode {
                 // calling the syncFromPrimary method to perform an initial data synchronization from the primary node.
                 syncFromPrimary(curClient, zkNode, keyValueHandler, children.get(0));
             }
+            if(!isInitialSyncCompleted){
+                syncFromPrimary(curClient, zkNode, keyValueHandler, children.get(0));
+                isInitialSyncCompleted = true;
+                System.out.println("Primary node iscopying to back up");
+  
+                log.info("Primary node iscopying to back up ");
+            }
             System.out.println("This node is Backup: " + createdNodePath + "\n");
+
+           ///
         }
+
         
     }
 
