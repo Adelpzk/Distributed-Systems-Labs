@@ -5,9 +5,6 @@ service KeyValueService {
   // New method to set the primary status of the server
   void setPrimary(1: bool isPrimary);
 
-  // New method to retrieve all key-value pairs
-  map<string, string> getAllData();
-
   // New method to load key-value pairs
   void loadData(1: map<string, string> data);
 }

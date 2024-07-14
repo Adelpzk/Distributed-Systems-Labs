@@ -21,8 +21,6 @@ public class StorageNode {
     static String port;
     static String zkConnectString;
     static String zkNode;
-    static volatile boolean isPrimary;
-    static volatile boolean isInitialSyncCompleted = false;
 
     public static void main(String[] args) throws Exception {
         BasicConfigurator.configure();
@@ -52,10 +50,14 @@ public class StorageNode {
             }
         });
 
+        // Create an ephemeral sequential node in ZooKeeper
+        String createdNodePath = curClient.create()
+                .withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
+                .forPath(zkNode + "/node-", (host + ":" + port).getBytes());
+
         KeyValueHandler keyValueHandler = new KeyValueHandler(args[0], Integer.parseInt(args[1]), curClient, args[3]);
 
-        KeyValueService.Processor<KeyValueService.Iface> processor = new KeyValueService.Processor<>(
-                keyValueHandler);
+        KeyValueService.Processor<KeyValueService.Iface> processor = new KeyValueService.Processor<>(keyValueHandler);
         TServerSocket socket = new TServerSocket(Integer.parseInt(args[1]));
         TThreadPoolServer.Args sargs = new TThreadPoolServer.Args(socket);
         sargs.protocolFactory(new TBinaryProtocol.Factory());
@@ -70,84 +72,67 @@ public class StorageNode {
                 server.serve();
             }
         }).start();
-
-        // Create an ephemeral sequential node in ZooKeeper
-        String createdNodePath = curClient.create()
-                .withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-                .forPath(zkNode + "/node-", (host + ":" + port).getBytes());
-        System.out.println("Created znode: " + createdNodePath);
-
-        while (true) {
-            // continuosly running loop
-            // in here we keep checking to determine the role of this server, whether it is a primary node or a back up node
-            determineRole(curClient, zkNode, createdNodePath, keyValueHandler);
-            Thread.sleep(1000);
-        }
-    }
-
-    private static void determineRole(CuratorFramework curClient, String zkNode, String createdNodePath, KeyValueHandler keyValueHandler)
-            throws Exception {
-        List<String> children = curClient.getChildren().forPath(zkNode);
-        Collections.sort(children);
-        System.out.println("Children nodes: " + children);
-
-        String primaryNode = children.get(0);
-        // if this node is supposed to be primary node
-        if (createdNodePath.endsWith(primaryNode)) {
-            // but currently is not, then update it to be the primary node
-            if (!isPrimary) {
-                isPrimary = true;
-                keyValueHandler.setPrimary(true);
-                log.info("This node is now the primary: " + createdNodePath);
-                System.out.println("This node is now the primary: " + createdNodePath + "\n\n");
-            }
-        } 
-
-        // if this node is not a primary node
-        else {
-            // but currently it is set to a primary node, update it to the backup/not primary node
-            if (isPrimary) {
-                isPrimary = false;
-                keyValueHandler.setPrimary(false);
-                log.info("This node is now a backup: " + createdNodePath);
-                System.out.println("This node is now a backup: " + createdNodePath + "\n\n");
-                // calling the syncFromPrimary method to perform an initial data synchronization from the primary node.
-                syncFromPrimary(curClient, zkNode, keyValueHandler, children.get(0));
-            }
-            if(!isInitialSyncCompleted){
-                syncFromPrimary(curClient, zkNode, keyValueHandler, children.get(0));
-                isInitialSyncCompleted = true;
-                System.out.println("Primary node iscopying to back up");
-  
-                log.info("Primary node iscopying to back up ");
-            }
-            System.out.println("This node is Backup: " + createdNodePath + "\n");
-
-           ///
-        }
-
         
-    }
+        List<String> children = new ArrayList<>();
 
-    private static void syncFromPrimary(CuratorFramework curClient, String zkNode, KeyValueHandler keyValueHandler, String primaryNode) throws Exception {
-        byte[] primaryData = curClient.getData().forPath(zkNode + "/" + primaryNode);
+        while (children.size() == 0) {
+            curClient.sync();
+            children = curClient.getChildren().forPath(zkNode);
+        }
+        
+        Collections.sort(children);
+    
+        // Theres only one node, must be the primary
+        if (children.size() == 1) {
+            return;
+        }
+
+        // Get primary host and port
+        byte[] primaryData = curClient.getData().forPath(zkNode + "/" + children.get(children.size() - 2));
         String strPrimaryData = new String(primaryData);
         String[] primary = strPrimaryData.split(":");
         String primaryHost = primary[0];
         int primaryPort = Integer.parseInt(primary[1]);
 
+        // Get the backup host and port
+        byte[] backupData = curClient.getData().forPath(zkNode + "/" + children.get(children.size() - 1));
+        String strBackupData = new String(backupData);
+        String[] backup = strBackupData.split(":");
+        String backupHost = backup[0];
+        int backupPort = Integer.parseInt(backup[1]);
+
+        // Connect to primary
         TSocket sock = new TSocket(primaryHost, primaryPort);
         TTransport transport = new TFramedTransport(sock);
         transport.open();
         TProtocol protocol = new TBinaryProtocol(transport);
         KeyValueService.Client primaryClient = new KeyValueService.Client(protocol);
+        
+        // Continually ping the primary 
+        while (true) {
+            try {
+                Thread.sleep(100);
+                // This doesnt do anything
+                primaryClient.setPrimary(true);
+                continue;
+            } catch (Exception e) {
+                // Primary is dead
+                break;
+            }
+        }
 
-        // get all key-value pairs from the primary
-        Map<String, String> data = primaryClient.getAllData();
-        // load the map with data recieved from primary node
-        keyValueHandler.loadData(data);
+        // Delete the primary from zk
+        curClient.delete().forPath(zkNode + "/" + children.get(0));
+
+        // Backup becomes new primary
+        sock = new TSocket(backupHost, backupPort);
+        transport = new TFramedTransport(sock);
+        transport.open();
+        protocol = new TBinaryProtocol(transport);
+        KeyValueService.Client backupClient = new KeyValueService.Client(protocol);
+        
+        backupClient.setPrimary(true);
 
         transport.close();
-        System.out.println("Initial data sync from primary completed" + "\n\n");
     }
 }
