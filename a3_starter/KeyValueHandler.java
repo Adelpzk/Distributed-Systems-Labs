@@ -35,7 +35,7 @@ public class KeyValueHandler implements KeyValueService.Iface, CuratorWatcher {
 
         // Assign primary or backup
         if (children.size() == 1) {
-            System.out.println("This is Primary");
+            // System.out.println("This is Primary");
             this.isPrimary = true;
         } else {
             Collections.sort(children);
@@ -48,10 +48,10 @@ public class KeyValueHandler implements KeyValueService.Iface, CuratorWatcher {
 
             // Check if this is primary
             if (primaryHost.equals(host) && primaryPort == port) {
-                System.out.println("This is Primary");
+                // System.out.println("This is Primary");
                 this.isPrimary = true;
             } else {
-                System.out.println("This is Backup");
+                // System.out.println("This is Backup");
                 this.isPrimary = false;
             }
         }
@@ -111,17 +111,17 @@ public class KeyValueHandler implements KeyValueService.Iface, CuratorWatcher {
     public void loadData(Map<String, String> data) {
         // updates a map with the passed in map.
         this.myMap = new ConcurrentHashMap<String, String>(data); 
-        System.out.println("Copied to backup!");
+        // System.out.println("Copied to backup!");
     }
 
     // Called whenever a change is detected in the znode tree
     synchronized public void process(WatchedEvent event) throws Exception {
-        System.out.println("Event happened");
+        // System.out.println("Event happened");
         curClient.sync();
         List<String> children = curClient.getChildren().usingWatcher(this).forPath(zkNode);
 
         if (children.size() == 1) {
-            System.out.println("This is primary");
+            // System.out.println("This is primary");
             this.isPrimary = true;
             return;
         }
@@ -135,16 +135,16 @@ public class KeyValueHandler implements KeyValueService.Iface, CuratorWatcher {
 
         // check if this is primary
         if (backupHost.equals(host) && backupPort == port) {
-            System.out.println("This is backup");
+            // System.out.println("This is backup");
             this.isPrimary = false;
         } else {
-            System.out.println("This is primary");
+            // System.out.println("This is primary");
             this.isPrimary = true;
         }
         
         // New primary needs to copy data to new backup
         if (this.isPrimary && this.backupPool == null) {
-            System.out.println("Initiating copy to backup");
+            // System.out.println("Initiating copy to backup");
             KeyValueService.Client backupClient = null;
             
             while(backupClient == null) {
