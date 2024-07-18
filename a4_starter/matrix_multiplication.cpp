@@ -14,7 +14,7 @@ void read_matrix(const std::size_t m, const std::size_t n,
   std::vector<mentry_t>& matrix, const std::string filename) {
 
   std::ifstream file(filename, std::ifstream::in);  
-  if (file.fail()){
+  if (file.fail()) {
     std::cerr << "File error." << std::endl;
     return;
   }        
@@ -39,7 +39,7 @@ void write_matrix(const std::size_t m, const std::size_t n,
   const std::vector<mentry_t>& matrix, const std::string filename) {
 
   std::ofstream file(filename, std::ofstream::out);
-  if (file.fail()){
+  if (file.fail()) {
     std::cerr << "File error." << std::endl;
     return;
   }
@@ -64,7 +64,7 @@ void write_result(const std::vector<std::string>& result,
   const std::string filename) {
 
   std::ofstream file(filename, std::ofstream::app); //std::ofstream::out);
-  if (file.fail()){
+  if (file.fail()) {
     std::cerr << "File error." << std::endl;
     return;
   }
@@ -111,8 +111,8 @@ int main(int argc, char** argv) {
 
   {
     std::stringstream ss;
-	ss << process_group_size;
-	result.emplace_back(ss.str());
+	  ss << process_group_size;
+	  result.emplace_back(ss.str());
   }
 
   {
@@ -139,28 +139,28 @@ int main(int argc, char** argv) {
   if (process_rank == 0) {
 
     double local_start_time;
-	double local_end_time; 
+	  double local_end_time; 
     double local_elapsed_time;
 
     message_Item = m;
     MPI_Send(&message_Item, 1, MPI_UINT64_T, 1, 1, MPI_COMM_WORLD);
-	std::cout << "MPI rank " << process_rank << 
+	  std::cout << "MPI rank " << process_rank << 
       " sent order of square matrix " << message_Item << std::endl;
 
     output_matrix_c.resize(m*n);
 
-	local_start_time = MPI_Wtime();
+	  local_start_time = MPI_Wtime();
     read_matrix(m, n, input_matrix_a, input_filename_a);
-	read_matrix(m, n, input_matrix_b, input_filename_b);
-	local_end_time = MPI_Wtime(); // local to a process, global barrier
+	  read_matrix(m, n, input_matrix_b, input_filename_b);
+	  local_end_time = MPI_Wtime(); // local to a process, global barrier
                                   // is not required
-	local_elapsed_time = local_end_time - local_start_time;
+	  local_elapsed_time = local_end_time - local_start_time;
     std::cout << "MPI rank " << process_rank << " - read input time: " <<
       local_elapsed_time << " seconds " << std::endl;
 
     // serial matrix multiplication
 	
-	local_start_time = MPI_Wtime(); 
+	  local_start_time = MPI_Wtime(); 
 
     for (std::size_t ra = 0; ra < m * n; ra = ra + n) { // matrix_a
       for (std::size_t j = 0; j < n; ++j) { // matrix_b
@@ -168,10 +168,10 @@ int main(int argc, char** argv) {
 		  ++i) {
 		  output_matrix_c[ra + j] += input_matrix_a[ca] * input_matrix_b[rb];
         } // for				
-	  } // for								   
-	} // for			
+	    } // for								   
+	  } // for			
 	   		
-	local_end_time = MPI_Wtime();
+	  local_end_time = MPI_Wtime();
     local_elapsed_time = local_end_time - local_start_time;
     std::cout << "MPI rank " << process_rank << 
 	  " - serial matrix multiplication time: " <<
@@ -212,7 +212,7 @@ int main(int argc, char** argv) {
   if (process_rank == 0) {
     double local_start_time =  MPI_Wtime(); 
     write_matrix(m, n, output_matrix_c, output_filename_c);  
-	double local_end_time =  MPI_Wtime();  
+	  double local_end_time =  MPI_Wtime();  
     double local_elapsed_time = local_end_time - local_start_time;
     std::cout << "MPI rank " << process_rank << " - write output time: " << 
       local_elapsed_time << " seconds " << std::endl; 	
