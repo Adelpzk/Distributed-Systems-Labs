@@ -47,13 +47,7 @@ public class KeyValueHandler implements KeyValueService.Iface, CuratorWatcher {
             int primaryPort = Integer.parseInt(primary[1]);
 
             // Check if this is primary
-            if (primaryHost.equals(host) && primaryPort == port) {
-                // System.out.println("This is Primary");
-                this.isPrimary = true;
-            } else {
-                // System.out.println("This is Backup");
-                this.isPrimary = false;
-            }
+            this.isPrimary = primaryHost.equals(host) && primaryPort == port;
         }
     }
 
@@ -134,13 +128,7 @@ public class KeyValueHandler implements KeyValueService.Iface, CuratorWatcher {
         int backupPort = Integer.parseInt(backup[1]);
 
         // check if this is primary
-        if (backupHost.equals(host) && backupPort == port) {
-            // System.out.println("This is backup");
-            this.isPrimary = false;
-        } else {
-            // System.out.println("This is primary");
-            this.isPrimary = true;
-        }
+        this.isPrimary = !(backupHost.equals(host) && backupPort == port);
         
         // New primary needs to copy data to new backup
         if (this.isPrimary && this.backupPool == null) {
