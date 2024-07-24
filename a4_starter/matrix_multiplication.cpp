@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <cassert>
 
 #include <stdio.h>
 #include <mpi.h>
@@ -10,8 +11,7 @@
 using mentry_t = std::uint64_t;
 
 // do not modify
-void read_matrix(const std::size_t m, const std::size_t n, 
-    std::vector<mentry_t>& matrix, const std::string filename) {
+void read_matrix(const std::size_t m, const std::size_t n, std::vector<mentry_t>& matrix, const std::string filename) {
 
     std::ifstream file(filename, std::ifstream::in);  
     if (file.fail()) {
@@ -35,8 +35,7 @@ void read_matrix(const std::size_t m, const std::size_t n,
 } // read_matrix
 
 // do not modify
-void write_matrix(const std::size_t m, const std::size_t n, 
-    const std::vector<mentry_t>& matrix, const std::string filename) {
+void write_matrix(const std::size_t m, const std::size_t n, const std::vector<mentry_t>& matrix, const std::string filename) {
 
     std::ofstream file(filename, std::ofstream::out);
     if (file.fail()) {
@@ -60,8 +59,7 @@ void write_matrix(const std::size_t m, const std::size_t n,
 } // write_matrix
   
 // do not modify
-void write_result(const std::vector<std::string>& result, 
-    const std::string filename) {
+void write_result(const std::vector<std::string>& result, const std::string filename) {
 
     std::ofstream file(filename, std::ofstream::app); //std::ofstream::out);
     if (file.fail()) {
@@ -77,7 +75,17 @@ void write_result(const std::vector<std::string>& result,
     std::cout << std::endl;
     file.close(); 		
 } // write_result
-   
+
+void matrix_multiply(const std::vector<mentry_t>& a, const std::vector<mentry_t>& b, std::vector<mentry_t>& c, int m, int rows_per_proc) {
+    for (std::size_t ra = 0; ra < rows_per_proc * m; ra = ra + m) { // matrix_a
+        for (std::size_t j = 0; j < m; ++j) { // matrix_b
+            for (std::size_t ca = ra, rb = j, i = 0; i < m; ++ca, rb = rb + m, ++i) {
+                c[ra + j] += a[ca] * b[rb];
+            } // for				
+        } // for								   
+    } // for
+}
+
 int main(int argc, char** argv) {
 
     int process_rank, process_group_size;
@@ -92,6 +100,7 @@ int main(int argc, char** argv) {
 
     std::size_t m = std::stoul(argv[1]); //4; // #rows
     std::size_t n = m; // #columns
+    std::size_t rows_per_proc = m / process_group_size;
 
     std::string input_filename_a = argv[2]; //"matrix_a.txt";
     std::string input_filename_b = argv[3]; //"matrix_b.txt";
@@ -106,7 +115,7 @@ int main(int argc, char** argv) {
     std::vector<mentry_t> output_matrix_c;
 
     std::vector<std::string> result;
-
+    
     result.emplace_back(input_experiment_name);
 
     {
@@ -134,60 +143,36 @@ int main(int argc, char** argv) {
     // The output matrix must be stored in the "output_matrix_c" data structure
     // The code for writing output to file is provided below 
 
-    std::size_t message_Item; 
-
     if (process_rank == 0) {
+        output_matrix_c.resize(m * n);
 
-        double local_start_time;
-        double local_end_time; 
-        double local_elapsed_time;
-
-        message_Item = m;
-        MPI_Send(&message_Item, 1, MPI_UINT64_T, 1, 1, MPI_COMM_WORLD);
-        std::cout << "MPI rank " << process_rank << 
-        " sent order of square matrix " << message_Item << std::endl;
-
-        output_matrix_c.resize(m*n);
-
-        local_start_time = MPI_Wtime();
         read_matrix(m, n, input_matrix_a, input_filename_a);
         read_matrix(m, n, input_matrix_b, input_filename_b);
-        local_end_time = MPI_Wtime(); // local to a process, global barrier
-                                    // is not required
-        local_elapsed_time = local_end_time - local_start_time;
-        std::cout << "MPI rank " << process_rank << " - read input time: " <<
-        local_elapsed_time << " seconds " << std::endl;
-
-        // serial matrix multiplication
-        
-        local_start_time = MPI_Wtime(); 
-
-        for (std::size_t ra = 0; ra < m * n; ra = ra + n) { // matrix_a
-        for (std::size_t j = 0; j < n; ++j) { // matrix_b
-            for (std::size_t ca = ra, rb = j, i = 0; i < n; ++ca, rb = rb + n,
-            ++i) {
-            output_matrix_c[ra + j] += input_matrix_a[ca] * input_matrix_b[rb];
-            } // for				
-            } // for								   
-        } // for			
-                
-        local_end_time = MPI_Wtime();
-        local_elapsed_time = local_end_time - local_start_time;
-        std::cout << "MPI rank " << process_rank << 
-        " - serial matrix multiplication time: " <<
-        local_elapsed_time << " seconds " << std::endl;
-
-    } else if (process_rank == 1) {
-
-        MPI_Recv(&message_Item, 1, MPI_UINT64_T, 0, 1, MPI_COMM_WORLD, 
-        MPI_STATUS_IGNORE);
-        std::cout << "MPI rank " << process_rank << 
-        " received order of square matrix " << message_Item << std::endl; 
-
-    } else {
-        std::cout << "MPI rank " << process_rank << " is idle" << std::endl; 
+       
+        assert(input_matrix_a.size() == m * n && "Matrix A size is incorrect");
+        assert(input_matrix_b.size() == m * n && "Matrix B size is incorrect");
     }
 
+    std::vector<mentry_t> local_a(rows_per_proc * m);
+    std::vector<mentry_t> local_c(rows_per_proc * m, 0);
+
+    // Scatter the rows of matrix A to all processes
+    MPI_Scatter(input_matrix_a.data(), rows_per_proc * m, MPI_UINT64_T, local_a.data(), rows_per_proc * m, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+
+    // Broadcast matrix B to all processes
+    input_matrix_b.resize(m * n); // Resize for broadcasting
+    MPI_Bcast(input_matrix_b.data(), m * n, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+
+    // Perform local matrix multiplication
+    matrix_multiply(local_a, input_matrix_b, local_c, m, rows_per_proc);
+
+    // Gather the local matrices C from all processes
+    if (process_rank == 0) {
+        output_matrix_c.resize(m * n);
+    }
+
+    MPI_Gather(local_c.data(), rows_per_proc * m, MPI_UINT64_T, output_matrix_c.data(), rows_per_proc * m, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+ 
     // your code ends //////////////////////////////////////////////////////////// 
 
     // do not modify the code below
