@@ -4,6 +4,7 @@
 #include <vector>
 #include <sstream>
 #include <cassert>
+#include <cmath>
 
 #include <stdio.h>
 #include <mpi.h>
@@ -76,14 +77,37 @@ void write_result(const std::vector<std::string>& result, const std::string file
     file.close(); 		
 } // write_result
 
-void matrix_multiply(const std::vector<mentry_t>& a, const std::vector<mentry_t>& b, std::vector<mentry_t>& c, int m, int rows_per_proc) {
-    for (std::size_t ra = 0; ra < rows_per_proc * m; ra = ra + m) { // matrix_a
-        for (std::size_t j = 0; j < m; ++j) { // matrix_b
-            for (std::size_t ca = ra, rb = j, i = 0; i < m; ++ca, rb = rb + m, ++i) {
-                c[ra + j] += a[ca] * b[rb];
-            } // for				
-        } // for								   
-    } // for
+// Function to print a matrix in row-major order
+void print(const std::vector<mentry_t>& matrix, int rows, int cols, int rank, std::string name) {
+    if (matrix.size() != rows * cols) {
+        std::cerr << "Error: Matrix size does not match the specified dimensions." << std::endl;
+        return;
+    }
+
+    std::cout << "Rank " << rank << " " << name << std::endl;
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            std::cout << matrix[i * cols + j] << " ";
+        }
+        std::cout << std::endl;
+    }
+}
+
+// Function to multiply two matrices with different storage orders
+// a: m x n, b: n x p, c: m * n
+void multiply(
+    const std::vector<mentry_t>& a, int m, int n,
+    const std::vector<mentry_t>& b, int p,
+    std::vector<mentry_t>& c) { 
+
+    // Perform matrix multiplication
+    for (int i = 0; i < m; ++i) {           // Iterate over rows of A (and C)
+        for (int j = 0; j < p; ++j) {       // Iterate over columns of B (and C)
+            for (int k = 0; k < n; ++k) {   // Iterate over common dimension
+                c[i * p + j] += a[i * n + k] * b[k * p + j];
+            }
+        }
+    }
 }
 
 int main(int argc, char** argv) {
@@ -100,7 +124,6 @@ int main(int argc, char** argv) {
 
     std::size_t m = std::stoul(argv[1]); //4; // #rows
     std::size_t n = m; // #columns
-    std::size_t rows_per_proc = m / process_group_size;
 
     std::string input_filename_a = argv[2]; //"matrix_a.txt";
     std::string input_filename_b = argv[3]; //"matrix_b.txt";
@@ -143,7 +166,20 @@ int main(int argc, char** argv) {
     // The output matrix must be stored in the "output_matrix_c" data structure
     // The code for writing output to file is provided below 
 
+    // Determine the processor grid dimensions
+    int rows = std::sqrt(process_group_size);
+    while (process_group_size % rows != 0) {
+        rows--;
+    }
+    int cols = process_group_size / rows;
+
+    std::size_t rows_per_proc = m / rows;
+    std::size_t cols_per_proc = n / cols;
+    
     if (process_rank == 0) {
+        // std::cout << "grid = " << rows << "x" << cols << std::endl;
+        // std::cout << "block size = " << rows_per_proc << "x" << cols_per_proc << std::endl;
+        
         output_matrix_c.resize(m * n);
 
         read_matrix(m, n, input_matrix_a, input_filename_a);
@@ -154,24 +190,108 @@ int main(int argc, char** argv) {
     }
 
     std::vector<mentry_t> local_a(rows_per_proc * m);
-    std::vector<mentry_t> local_c(rows_per_proc * m, 0);
+    std::vector<mentry_t> local_b(cols_per_proc * m);
+    std::vector<mentry_t> local_c(rows_per_proc * cols_per_proc, 0);
 
-    // Scatter the rows of matrix A to all processes
-    MPI_Scatter(input_matrix_a.data(), rows_per_proc * m, MPI_UINT64_T, local_a.data(), rows_per_proc * m, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-
-    // Broadcast matrix B to all processes
-    input_matrix_b.resize(m * n); // Resize for broadcasting
-    MPI_Bcast(input_matrix_b.data(), m * n, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-
-    // Perform local matrix multiplication
-    matrix_multiply(local_a, input_matrix_b, local_c, m, rows_per_proc);
-
-    // Gather the local matrices C from all processes
     if (process_rank == 0) {
-        output_matrix_c.resize(m * n);
+        // Scatter rows of matrix A and columns of matrix B
+        int rank_to_send = 1;
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                int start_row = i * rows_per_proc;
+                int start_col = j * cols_per_proc;
+
+                std::vector<mentry_t> rows_of_a(rows_per_proc * n);
+                std::vector<mentry_t> cols_of_b(n * cols_per_proc);
+
+                // Extract rows of A
+                for (int r = 0; r < rows_per_proc; ++r) {
+                    for (int c = 0; c < n; ++c) {
+                        rows_of_a[r * n + c] = input_matrix_a[(start_row + r) * n + c];
+                    }
+                }
+
+                // Extract columns of B
+                for (int c = 0; c < cols_per_proc; ++c) {
+                    for (int r = 0; r < n; ++r) {
+                        cols_of_b[r * cols_per_proc + c] = input_matrix_b[r * n + (start_col + c)];
+                    }
+                }
+
+                // print(rows_of_a, rows_per_proc, n, 0, "Rows of A");
+                // print(cols_of_b, cols_per_proc, n, 0, "Cols of B");
+
+                if (i == 0 && j == 0) {
+                    // This is the root process itself
+                    // Do not send to itself, only send to others
+                    local_a = rows_of_a;
+                    local_b = cols_of_b;
+                } else {
+                    MPI_Send(rows_of_a.data(), rows_per_proc * n, MPI_UINT64_T, rank_to_send, 0, MPI_COMM_WORLD);
+                    MPI_Send(cols_of_b.data(), n * cols_per_proc, MPI_UINT64_T, rank_to_send, 1, MPI_COMM_WORLD);
+                    rank_to_send++;
+                }
+            }
+        }
+    } else {
+        MPI_Recv(local_a.data(), rows_per_proc * n, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(local_b.data(), n * cols_per_proc, MPI_UINT64_T, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
-    MPI_Gather(local_c.data(), rows_per_proc * m, MPI_UINT64_T, output_matrix_c.data(), rows_per_proc * m, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    // print(local_a, rows_per_proc, n, process_rank, "A");
+    // print(local_b, n, cols_per_proc, process_rank, "B");
+
+    multiply(local_a, rows_per_proc, n, local_b, cols_per_proc, local_c);
+
+    // print(local_c, rows_per_proc, cols_per_proc, process_rank, "C");
+    
+    if (process_rank == 0) {
+        output_matrix_c.resize(m * n);
+
+        // Displacements and counts
+        std::vector<int> displacements(process_group_size);
+        std::vector<int> recv_counts(process_group_size, rows_per_proc * cols_per_proc);
+
+        int displ = 0;
+        for (int i = 0; i < process_group_size; ++i) {
+            displacements[i] = displ;
+            displ += rows_per_proc * cols_per_proc;
+        }
+
+        // Receive blocks from all processes
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                int rank = i * cols + j;
+                if (rank == 0) {
+                    std::copy(local_c.begin(), local_c.end(), output_matrix_c.begin() + displacements[rank]);
+                } else {
+                    MPI_Recv(&output_matrix_c[displacements[rank]], rows_per_proc * cols_per_proc, MPI_UINT64_T, rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                }
+            }
+        }
+
+        // Reassemble matrix C correctly
+        std::vector<uint64_t> temp_matrix(m * n, 0);
+        for (int i = 0; i < rows; ++i) {
+            for (int j = 0; j < cols; ++j) {
+                int rank = i * cols + j;
+                int start_row = i * rows_per_proc;
+                int start_col = j * cols_per_proc;
+                for (int r = 0; r < rows_per_proc; ++r) {
+                    for (int c = 0; c < cols_per_proc; ++c) {
+                        temp_matrix[(start_row + r) * n + (start_col + c)] = output_matrix_c[displacements[rank] + r * cols_per_proc + c];
+                    }
+                }
+            }
+        }
+        output_matrix_c = temp_matrix;
+
+        // print(output_matrix_c, m, n, 0, "C");
+
+    } else {
+        // Send local block to the root process
+        MPI_Send(local_c.data(), rows_per_proc * cols_per_proc, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD);
+    }
  
     // your code ends //////////////////////////////////////////////////////////// 
 
