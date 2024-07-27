@@ -94,7 +94,7 @@ void print(const std::vector<mentry_t>& matrix, int rows, int cols, int rank, st
 }
 
 // Function to multiply two matrices with different storage orders
-// a: m x n, b: n x p, c: m * n
+// a: m x n, b: n x p, c: m x n
 void multiply(
     const std::vector<mentry_t>& a, int m, int n,
     const std::vector<mentry_t>& b, int p,
@@ -262,7 +262,8 @@ int main(int argc, char** argv) {
             displ += rows_per_proc * cols_per_proc;
         }
 
-        // Receive blocks from all processes
+        // Receive blocks from all processes and reassemble matrix C
+        std::vector<uint64_t> temp_matrix(m * n, 0);
         for (int i = 0; i < rows; ++i) {
             for (int j = 0; j < cols; ++j) {
                 int rank = i * cols + j;
@@ -271,14 +272,7 @@ int main(int argc, char** argv) {
                 } else {
                     MPI_Recv(&output_matrix_c[displacements[rank]], rows_per_proc * cols_per_proc, MPI_UINT64_T, rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                 }
-            }
-        }
 
-        // Reassemble matrix C correctly
-        std::vector<uint64_t> temp_matrix(m * n, 0);
-        for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                int rank = i * cols + j;
                 int start_row = i * rows_per_proc;
                 int start_col = j * cols_per_proc;
                 for (int r = 0; r < rows_per_proc; ++r) {
@@ -291,7 +285,6 @@ int main(int argc, char** argv) {
         output_matrix_c = temp_matrix;
 
         // print(output_matrix_c, m, n, 0, "C");
-
     } else {
         // Send local block to the root process
         MPI_Send(local_c.data(), rows_per_proc * cols_per_proc, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD);
