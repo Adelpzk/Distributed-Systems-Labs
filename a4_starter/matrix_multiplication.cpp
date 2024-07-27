@@ -173,9 +173,11 @@ int main(int argc, char** argv) {
     }
     int cols = process_group_size / rows;
 
+    // Determine block dimensions
     std::size_t rows_per_proc = m / rows;
     std::size_t cols_per_proc = n / cols;
     
+    // root reads matrices
     if (process_rank == 0) {
         // std::cout << "grid = " << rows << "x" << cols << std::endl;
         // std::cout << "block size = " << rows_per_proc << "x" << cols_per_proc << std::endl;
@@ -241,10 +243,12 @@ int main(int argc, char** argv) {
     // print(local_a, rows_per_proc, n, process_rank, "A");
     // print(local_b, n, cols_per_proc, process_rank, "B");
 
+    // Perform matrix multiplication
     multiply(local_a, rows_per_proc, n, local_b, cols_per_proc, local_c);
 
     // print(local_c, rows_per_proc, cols_per_proc, process_rank, "C");
     
+    // Gather blocks
     if (process_rank == 0) {
         output_matrix_c.resize(m * n);
 
