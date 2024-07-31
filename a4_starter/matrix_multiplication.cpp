@@ -174,8 +174,8 @@ int main(int argc, char** argv) {
     int cols = process_group_size / rows;
 
     // Determine block dimensions
-    std::size_t rows_per_proc = m / rows;
-    std::size_t cols_per_proc = n / cols;
+    int rows_per_proc = m / rows;
+    int cols_per_proc = n / cols;
     
     // root reads matrices
     if (process_rank == 0) {
@@ -233,7 +233,11 @@ int main(int argc, char** argv) {
     // print(local_c, rows_per_proc, cols_per_proc, process_rank, "C");
 
     // Gather all blocks from processes
-    std::vector<mentry_t> gathered_blocks(process_group_size * rows_per_proc * cols_per_proc);
+    std::vector<mentry_t> gathered_blocks;
+    if (process_rank == 0) {
+        gathered_blocks.resize(process_group_size * rows_per_proc * cols_per_proc);
+    }
+    
     MPI_Gather(local_c.data(), rows_per_proc * cols_per_proc, MPI_UINT64_T, gathered_blocks.data(), rows_per_proc * cols_per_proc, MPI_UINT64_T, 0, MPI_COMM_WORLD);
 
     // Default gather is incorrect, rearrangement required
