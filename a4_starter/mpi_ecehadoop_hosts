@@ -1,0 +1,15 @@
+#eceHadoop.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop0.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop1.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop2.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop3.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop4.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop5.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop6.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop7.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop8.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop9.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop10.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop11.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop12.private.uwaterloo.ca slots=4 max-slots=4
+eceHadoop13.private.uwaterloo.ca slots=4 max-slots=4
