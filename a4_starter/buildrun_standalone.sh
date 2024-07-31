@@ -75,28 +75,6 @@ for NUMPROCS in 4 8 16; do
 done
 
 
-MTXORDER=256
-#MTXORDER=512
-for NUMPROCS in 4 8 16; do
-#for NUMPROCS in 8 16 32; do
-	GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
-	OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
-	EXPNAME=w # weak scaling	
-	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:24 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:32 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	MTXORDER=$((MTXORDER*2))
-	diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
-	if [ $? -ne 0 ]; then
-		echo Output is incorrect
-		sed -i '$s/$/0/' $RESULT		
-	else
-		echo Output is correct
-		sed -i '$s/$/1/' $RESULT	
-	fi
-done
-
-
 echo exptype, numproc, mtxorder, computetime, totaltime, correct > $OUTPUTDIR/result_header.txt
 cat $OUTPUTDIR/result_header.txt $OUTPUTDIR/result_data.txt > $OUTPUTDIR/result.txt
 rm $OUTPUTDIR/result_header.txt $OUTPUTDIR/result_data.txt $OUTPUTDIR/output_*.txt

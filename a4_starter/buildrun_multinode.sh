@@ -45,7 +45,8 @@ for MTXORDER in 256 512 1024; do
 	OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
 	EXPNAME=t # time-to-solution
 	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
-	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
+	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot -mca plm_rsh_args "-o StrictHostKeyChecking=no" ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
 	diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
 	if [ $? -ne 0 ]; then
 		echo Output is incorrect
@@ -67,7 +68,7 @@ for NUMPROCS in 8 16 32; do
 	EXPNAME=s # strong scaling
 	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by node hostname
 	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
-	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot -mca plm_rsh_args "-o StrictHostKeyChecking=no" ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
 	diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
 	if [ $? -ne 0 ]; then
 		echo Output is incorrect
@@ -76,28 +77,6 @@ for NUMPROCS in 8 16 32; do
 		echo Output is correct
 		sed -i '$s/$/1/' $RESULT	
 	fi		
-done
-
-
-MTXORDER=256
-#MTXORDER=512
-#for NUMPROCS in 4 8 16; do
-for NUMPROCS in 8 16 32; do
-	GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
-	OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
-	EXPNAME=w # weak scaling
-	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by node hostname	
-	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
-	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	MTXORDER=$((MTXORDER*2))
-	diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
-	if [ $? -ne 0 ]; then
-		echo Output is incorrect
-		sed -i '$s/$/0/' $RESULT		
-	else
-		echo Output is correct
-		sed -i '$s/$/1/' $RESULT	
-	fi
 done
 
 
