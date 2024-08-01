@@ -93,8 +93,6 @@ void print(const std::vector<mentry_t>& matrix, int rows, int cols, int rank, st
     }
 }
 
-// Function to multiply two matrices with different storage orders
-// a: m x n (row-major), b: n x p (column-major), c: m x p (row-major)
 void multiply(
     const std::vector<mentry_t>& a, int m, int n,
     const std::vector<mentry_t>& b, int p,
@@ -104,11 +102,12 @@ void multiply(
     for (int i = 0; i < m; ++i) {           // Iterate over rows of A (and C)
         for (int j = 0; j < p; ++j) {       // Iterate over columns of B (and C)
             for (int k = 0; k < n; ++k) {   // Iterate over common dimension
-                c[i * p + j] += a[i * n + k] * b[j * n + k];
+                c[i * p + j] += a[i * n + k] * b[k * p + j];
             }
         }
     }
 }
+
 
 int main(int argc, char** argv) {
 
@@ -176,6 +175,22 @@ int main(int argc, char** argv) {
     // Determine block dimensions
     int rows_per_proc = m / rows;
     int cols_per_proc = n / cols;
+
+    // Create Cartesian communicator
+    int dims[2] = {rows, cols};
+    int periods[2] = {0, 0};
+    MPI_Comm cart_comm;
+    MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 1, &cart_comm);
+
+    // Get coordinates of the current process in the Cartesian communicator
+    int coords[2];
+    MPI_Cart_coords(cart_comm, process_rank, 2, coords);
+    int row_rank = coords[0];
+    int col_rank = coords[1];
+
+    MPI_Comm row_comm, col_comm;
+    MPI_Comm_split(cart_comm, row_rank, process_rank, &row_comm);
+    MPI_Comm_split(cart_comm, col_rank, process_rank, &col_comm);
     
     // root reads matrices
     if (process_rank == 0) {
@@ -190,39 +205,60 @@ int main(int argc, char** argv) {
     std::vector<mentry_t> local_b(cols_per_proc * m);
     std::vector<mentry_t> local_c(rows_per_proc * cols_per_proc, 0);
 
-    // Extract rows of A and columns of B on root    
-    std::vector<mentry_t> scatter_a, scatter_b;
     if (process_rank == 0) {
-        scatter_a.resize(process_group_size * rows_per_proc * n);
-        scatter_b.resize(process_group_size * m * cols_per_proc);
-
-        // Populate scatter_a with the necessary rows of A for each process
+        int rank_to_send = 0;
         for (int i = 0; i < rows; ++i) {
             for (int j = 0; j < cols; ++j) {
+                int start_row = i * rows_per_proc;
+                int start_col = j * cols_per_proc;
+
+                std::vector<mentry_t> rows_of_a(rows_per_proc * n);
+                std::vector<mentry_t> cols_of_b(n * cols_per_proc);
+
+                // Extract rows of A
                 for (int r = 0; r < rows_per_proc; ++r) {
                     for (int c = 0; c < n; ++c) {
-                        scatter_a[(i * cols + j) * rows_per_proc * n + r * n + c] = input_matrix_a[(i * rows_per_proc + r) * n + c];
+                        rows_of_a[r * n + c] = input_matrix_a[(start_row + r) * n + c];
                     }
                 }
-            }
-        }
-        // print(scatter_a, process_group_size * rows_per_proc, n, 0, "Scatter A");
 
-        // Populate scatter_b with the necessary columns of B for each process
-        for (int j = 0; j < cols; ++j) {
-            for (int i = 0; i < rows; ++i) {
+                // Extract columns of B
                 for (int c = 0; c < cols_per_proc; ++c) {
-                    for (int r = 0; r < m; ++r) {
-                        scatter_b[(i * cols + j) * cols_per_proc * m + c * m + r] = input_matrix_b[r * n + (j * cols_per_proc + c)];
+                    for (int r = 0; r < n; ++r) {
+                        cols_of_b[r * cols_per_proc + c] = input_matrix_b[r * n + (start_col + c)];
                     }
                 }
+
+                if (i == 0 && j == 0) {
+                    // Root process itself
+                    local_a = rows_of_a;
+                    local_b = cols_of_b;
+                } else if (i == 0) {
+                    // Topmost row processors
+                    MPI_Send(cols_of_b.data(), n * cols_per_proc, MPI_UINT64_T, rank_to_send, 1, MPI_COMM_WORLD);
+                } else if (j == 0) {
+                    // Leftmost column processors
+                    MPI_Send(rows_of_a.data(), rows_per_proc * n, MPI_UINT64_T, rank_to_send, 0, MPI_COMM_WORLD);
+                }
+                rank_to_send++;
             }
         }
-        // print(scatter_b, process_group_size * cols_per_proc, m, 0, "Scatter B");
+    } 
+
+    if (row_rank == 0 && process_rank != 0) {
+        // Receive rows of A
+        MPI_Recv(local_b.data(), cols_per_proc * n, MPI_UINT64_T, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    if (col_rank == 0 && process_rank != 0) {
+        // Receive columns of B
+        MPI_Recv(local_a.data(), n * rows_per_proc, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
-    MPI_Scatter(scatter_a.data(), rows_per_proc * n, MPI_UINT64_T, local_a.data(), rows_per_proc * n, MPI_UINT64_T, 0, MPI_COMM_WORLD);
-    MPI_Scatter(scatter_b.data(), cols_per_proc * m, MPI_UINT64_T, local_b.data(), cols_per_proc * m, MPI_UINT64_T, 0, MPI_COMM_WORLD);
+    // Broadcast rows of A within rows
+    MPI_Bcast(local_a.data(), rows_per_proc * n, MPI_UINT64_T, 0, row_comm);
+
+    // Broadcast columns of B within columns
+    MPI_Bcast(local_b.data(), n * cols_per_proc, MPI_UINT64_T, 0, col_comm);
 
     // print(local_a, rows_per_proc, n, process_rank, "A");
     // print(local_b, n, cols_per_proc, process_rank, "B");
