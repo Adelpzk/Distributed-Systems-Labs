@@ -28,18 +28,18 @@ rm -f $OUTPUTDIR/*.txt
 
 # INPUTA=input/matrix_a_4_x_4.txt
 # INPUTB=input/matrix_b_4_x_4.txt
-INPUTA=input/matrix_a_2048_x_2048.txt
-INPUTB=input/matrix_b_2048_x_2048.txt
-#INPUTA=input/matrix_a_3072_x_3072.txt
-#INPUTB=input/matrix_b_3072_x_3072.txt
+# INPUTA=input/matrix_a_2048_x_2048.txt
+# INPUTB=input/matrix_b_2048_x_2048.txt
+INPUTA=input/matrix_a_3072_x_3072.txt
+INPUTB=input/matrix_b_3072_x_3072.txt
 
 RESULT=$OUTPUTDIR/result_data.txt
 
 STDOUTLOG=$OUTPUTDIR/stdout_log.txt
 
 # MTXORDER=4
-for MTXORDER in 256 512 1024; do
-#for MTXORDER in 512 1024 2048 3072; do
+# for MTXORDER in 256 512 1024; do
+for MTXORDER in 256 512 1024 2048 3072; do
 	GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
 	OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
 	EXPNAME=t # time-to-solution
@@ -56,25 +56,26 @@ for MTXORDER in 256 512 1024; do
 	fi		
 done
 
-
-for NUMPROCS in 4 8 16; do
-#for NUMPROCS in 8 16 32; do
-	MTXORDER=1024
-	#MTXORDER=3072
-	GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
-	OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
-	EXPNAME=s # strong scaling
-	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:24 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:32 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
-	if [ $? -ne 0 ]; then
-		echo Output is incorrect
-		sed -i '$s/$/0/' $RESULT		
-	else
-		echo Output is correct
-		sed -i '$s/$/1/' $RESULT	
-	fi		
+for MTXORDER in 1024 2048 3072; do 
+    for NUMPROCS in 4 8 16; do
+    #for NUMPROCS in 8 16 32; do
+        # MTXORDER=1024
+        #MTXORDER=3072
+        GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
+        OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
+        EXPNAME=s # strong scaling
+        #/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+        /usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:24 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+        #/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:32 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+        diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
+        if [ $? -ne 0 ]; then
+            echo Output is incorrect
+            sed -i '$s/$/0/' $RESULT		
+        else
+            echo Output is correct
+            sed -i '$s/$/1/' $RESULT	
+        fi
+    done		
 done
 
 
