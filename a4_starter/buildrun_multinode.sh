@@ -22,12 +22,12 @@ fi
 
 echo Compilation successful
 
+MPIHOSTFILE=mpi_ecehadoop_hosts
+
 OUTPUTDIR=output
 mkdir $OUTPUTDIR
 rm -f $OUTPUTDIR/*.txt
 
-# INPUTA=input/matrix_a_4_x_4.txt
-# INPUTB=input/matrix_b_4_x_4.txt
 # INPUTA=input/matrix_a_2048_x_2048.txt
 # INPUTB=input/matrix_b_2048_x_2048.txt
 INPUTA=input/matrix_a_3072_x_3072.txt
@@ -37,15 +37,16 @@ RESULT=$OUTPUTDIR/result_data.txt
 
 STDOUTLOG=$OUTPUTDIR/stdout_log.txt
 
-# MTXORDER=4
+
 # for MTXORDER in 256 512 1024; do
 for MTXORDER in 256 512 1024 2048 3072; do
+	NUMPROCS=32
 	GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
 	OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
 	EXPNAME=t # time-to-solution
-	#/usr/bin/time timeout 5m $MPIRUN -np 8 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	/usr/bin/time timeout 5m $MPIRUN -np 16 --host $HOSTNAME:16 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-	#/usr/bin/time timeout 5m $MPIRUN -np 24 --host $HOSTNAME:24 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
+	#/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
+	/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot -mca plm_rsh_args "-o StrictHostKeyChecking=no" ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
 	diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
 	if [ $? -ne 0 ]; then
 		echo Output is incorrect
@@ -56,17 +57,19 @@ for MTXORDER in 256 512 1024 2048 3072; do
 	fi		
 done
 
+
+#for NUMPROCS in 4 8 16; do
 for MTXORDER in 1024 2048 3072; do 
-    for NUMPROCS in 4 8 16; do
-    #for NUMPROCS in 8 16 32; do
+    for NUMPROCS in 4 8 16 32; do
         # MTXORDER=1024
+        #MTXORDER=2048
         #MTXORDER=3072
         GTC=${GTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt
         OUTPUTC=${OUTPUTDIR}/output_${MTXORDER}_x_${MTXORDER}.txt	
         EXPNAME=s # strong scaling
-        #/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-        /usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:24 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
-        #/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --host $HOSTNAME:32 ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
+        #/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by node hostname
+        #/usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot hostname
+        /usr/bin/time timeout 5m $MPIRUN -np $NUMPROCS --hostfile $MPIHOSTFILE --map-by slot -mca plm_rsh_args "-o StrictHostKeyChecking=no" ./matrix_multiplication.o $MTXORDER $INPUTA $INPUTB $OUTPUTC $RESULT $EXPNAME
         diff -b $GTC $OUTPUTC >> $STDOUTLOG 2>&1
         if [ $? -ne 0 ]; then
             echo Output is incorrect
@@ -74,8 +77,8 @@ for MTXORDER in 1024 2048 3072; do
         else
             echo Output is correct
             sed -i '$s/$/1/' $RESULT	
-        fi
-    done		
+        fi		
+    done
 done
 
 
