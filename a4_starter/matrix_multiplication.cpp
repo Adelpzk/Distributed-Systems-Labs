@@ -254,11 +254,25 @@ int main(int argc, char** argv) {
         MPI_Recv(local_a.data(), n * rows_per_proc, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
+    int divisor = 64;
+    assert(n >= divisor && "n must be greater than divisor");
+    assert(n % divisor == 0 && "n must be divisible by divisor");
+
     // Broadcast rows of A within rows
-    MPI_Bcast(local_a.data(), rows_per_proc * n, MPI_UINT64_T, 0, row_comm);
+    for (int i=0; i < rows_per_proc; ++i) { // broadcast 1 row at a time
+        for (int chunk=0; chunk < divisor; ++chunk) { // separate rows into chunks
+            int offset = i * n + chunk * (n / divisor);
+            MPI_Bcast(local_a.data() + offset, n / divisor, MPI_UINT64_T, 0, row_comm);
+        }
+    }
 
     // Broadcast columns of B within columns
-    MPI_Bcast(local_b.data(), n * cols_per_proc, MPI_UINT64_T, 0, col_comm);
+    for (int j=0; j < cols_per_proc; ++j) { // broadcast 1 row at a time
+        for (int chunk=0; chunk < divisor; ++chunk) { // separate rows into chunks
+            int offset = j * n + chunk * (n / divisor);
+            MPI_Bcast(local_b.data() + offset, n/divisor, MPI_UINT64_T, 0, col_comm);
+        }
+    }
 
     // print(local_a, rows_per_proc, n, process_rank, "A");
     // print(local_b, n, cols_per_proc, process_rank, "B");
