@@ -102,12 +102,11 @@ void multiply(
     for (int i = 0; i < m; ++i) {           // Iterate over rows of A (and C)
         for (int j = 0; j < p; ++j) {       // Iterate over columns of B (and C)
             for (int k = 0; k < n; ++k) {   // Iterate over common dimension
-                c[i * p + j] += a[i * n + k] * b[k * p + j];
+                c[i * p + j] += a[i * n + k] * b[j * n + k];
             }
         }
     }
 }
-
 
 int main(int argc, char** argv) {
 
@@ -191,11 +190,23 @@ int main(int argc, char** argv) {
     MPI_Comm row_comm, col_comm;
     MPI_Comm_split(cart_comm, row_rank, process_rank, &row_comm);
     MPI_Comm_split(cart_comm, col_rank, process_rank, &col_comm);
+
+    // Create sub-communicators for the first row and first column
+    MPI_Comm first_row_comm, first_col_comm;
+    if (row_rank == 0) {
+        MPI_Comm_split(MPI_COMM_WORLD, 0, process_rank, &first_row_comm);
+    } else {
+        MPI_Comm_split(MPI_COMM_WORLD, MPI_UNDEFINED, process_rank, &first_row_comm);
+    }
+
+    if (col_rank == 0) {
+        MPI_Comm_split(MPI_COMM_WORLD, 0, process_rank, &first_col_comm);
+    } else {
+        MPI_Comm_split(MPI_COMM_WORLD, MPI_UNDEFINED, process_rank, &first_col_comm);
+    }
     
     // root reads matrices
     if (process_rank == 0) {
-        // std::cout << "grid = " << rows << "x" << cols << std::endl;
-        // std::cout << "block size = " << rows_per_proc << "x" << cols_per_proc << std::endl;
         output_matrix_c.resize(m * n);
         read_matrix(m, n, input_matrix_a, input_filename_a);
         read_matrix(m, n, input_matrix_b, input_filename_b);
@@ -205,53 +216,38 @@ int main(int argc, char** argv) {
     std::vector<mentry_t> local_b(cols_per_proc * m);
     std::vector<mentry_t> local_c(rows_per_proc * cols_per_proc, 0);
 
+    // Prepare buffers for scattering
+    std::vector<mentry_t> send_buffer_a(rows * rows_per_proc * n); 
+    std::vector<mentry_t> send_buffer_b(cols * cols_per_proc * m);
+
     if (process_rank == 0) {
-        int rank_to_send = 0;
+        // Fill send_buffer_a by extracting rows of A
         for (int i = 0; i < rows; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                int start_row = i * rows_per_proc;
-                int start_col = j * cols_per_proc;
-
-                std::vector<mentry_t> rows_of_a(rows_per_proc * n);
-                std::vector<mentry_t> cols_of_b(n * cols_per_proc);
-
-                // Extract rows of A
-                for (int r = 0; r < rows_per_proc; ++r) {
-                    for (int c = 0; c < n; ++c) {
-                        rows_of_a[r * n + c] = input_matrix_a[(start_row + r) * n + c];
-                    }
+            for (int r = 0; r < rows_per_proc; ++r) {
+                for (int c = 0; c < n; ++c) {
+                    send_buffer_a[(i * rows_per_proc + r) * n + c] = input_matrix_a[(i * rows_per_proc + r) * n + c];
                 }
-
-                // Extract columns of B
-                for (int c = 0; c < cols_per_proc; ++c) {
-                    for (int r = 0; r < n; ++r) {
-                        cols_of_b[r * cols_per_proc + c] = input_matrix_b[r * n + (start_col + c)];
-                    }
-                }
-
-                if (i == 0 && j == 0) {
-                    // Root process itself
-                    local_a = rows_of_a;
-                    local_b = cols_of_b;
-                } else if (i == 0) {
-                    // Topmost row processors
-                    MPI_Send(cols_of_b.data(), n * cols_per_proc, MPI_UINT64_T, rank_to_send, 1, MPI_COMM_WORLD);
-                } else if (j == 0) {
-                    // Leftmost column processors
-                    MPI_Send(rows_of_a.data(), rows_per_proc * n, MPI_UINT64_T, rank_to_send, 0, MPI_COMM_WORLD);
-                }
-                rank_to_send++;
             }
         }
-    } 
 
-    if (row_rank == 0 && process_rank != 0) {
-        // Receive rows of A
-        MPI_Recv(local_b.data(), cols_per_proc * n, MPI_UINT64_T, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        // Fill send_buffer_b by extracting columns of B
+        for (int j = 0; j < cols; ++j) {
+            for (int c = 0; c < cols_per_proc; ++c) {
+                for (int r = 0; r < m; ++r) {
+                    send_buffer_b[(j * cols_per_proc + c) * m + r] = input_matrix_b[r * n + (j * cols_per_proc + c)];
+                }
+            }
+        }
     }
-    if (col_rank == 0 && process_rank != 0) {
-        // Receive columns of B
-        MPI_Recv(local_a.data(), n * rows_per_proc, MPI_UINT64_T, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    // Blocking scatter rows of A along the first column communicator
+    if (col_rank == 0) {
+        MPI_Scatter(send_buffer_a.data(), rows_per_proc * n, MPI_UINT64_T, local_a.data(), rows_per_proc * n, MPI_UINT64_T, 0, first_col_comm);
+    }
+
+    // Blocking scatter columns of B along the first row communicator
+    if (row_rank == 0) {
+        MPI_Scatter(send_buffer_b.data(), cols_per_proc * m, MPI_UINT64_T, local_b.data(), cols_per_proc * m, MPI_UINT64_T, 0, first_row_comm);
     }
 
     int divisor = 64;
@@ -273,14 +269,9 @@ int main(int argc, char** argv) {
             MPI_Bcast(local_b.data() + offset, n/divisor, MPI_UINT64_T, 0, col_comm);
         }
     }
-
-    // print(local_a, rows_per_proc, n, process_rank, "A");
-    // print(local_b, n, cols_per_proc, process_rank, "B");
-
+    
     // Perform matrix multiplication
     multiply(local_a, rows_per_proc, n, local_b, cols_per_proc, local_c);
-
-    // print(local_c, rows_per_proc, cols_per_proc, process_rank, "C");
 
     // Gather all blocks from processes
     std::vector<mentry_t> gathered_blocks;
@@ -307,8 +298,14 @@ int main(int argc, char** argv) {
                 }
             }
         }
-        // print(output_matrix_c, m, n, 0, "C");
     }
+
+    // Clean up communicators
+    if (row_rank == 0) MPI_Comm_free(&first_row_comm);
+    if (col_rank == 0) MPI_Comm_free(&first_col_comm);
+    MPI_Comm_free(&row_comm);
+    MPI_Comm_free(&col_comm);
+    MPI_Comm_free(&cart_comm);
     
     // your code ends //////////////////////////////////////////////////////////// 
 
